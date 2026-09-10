@@ -69,11 +69,8 @@ export default function DeskPage() {
   return (
     <div className="mx-auto max-w-5xl px-5 py-10 sm:px-8 sm:py-14">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Desk</h1>
-        <Link
-          href="/issue"
-          className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground hover:opacity-90"
-        >
+        <h1 className="font-display text-2xl font-medium tracking-tight text-ink">Desk</h1>
+        <Link href="/issue" className="btn-primary">
           Issue instrument
         </Link>
       </div>

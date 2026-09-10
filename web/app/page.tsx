@@ -23,16 +23,18 @@ export default function Home() {
   return (
     <div className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-16">
       <section className="max-w-2xl">
-        <p className="text-sm font-medium text-accent">Documentary credit, rebuilt on-chain</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
-          Payment held in escrow. Released the moment proof arrives.
+        <span className="eyebrow">Documentary credit, rebuilt on-chain</span>
+        <h1 className="mt-4 font-display text-4xl font-medium leading-[1.1] tracking-tight text-ink sm:text-5xl">
+          Payment held in escrow.
+          <br />
+          <span className="text-accent">Released the moment proof arrives.</span>
         </h1>
-        <p className="mt-4 text-base leading-relaxed text-muted sm:text-lg">
+        <p className="mt-5 text-base leading-relaxed text-muted sm:text-lg">
           Trade finance has run on paper documents and correspondent banks for a century. Aval
           replaces the manual check with a proof: Creditcoin&apos;s Attestcoin Protocol verifies
           that a shipment document was presented on another chain, and the escrow releases itself.
         </p>
-        <div className="mt-6 flex flex-wrap gap-3">
+        <div className="mt-7 flex flex-wrap gap-3">
           <Link href="/desk" className="btn-primary">
             View the desk
           </Link>
@@ -42,7 +44,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mt-14">
+      <section className="mt-16">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted">How it works</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           {steps.map((step, i) => (

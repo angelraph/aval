@@ -9,3 +9,4 @@ web/.next/
 web/out/
 *.log
 .DS_Store
+.claude/scheduled_tasks.lock

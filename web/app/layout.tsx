@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Tektur, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import { WalletProvider } from "@/lib/WalletContext";
 import { ConnectButton } from "@/components/ConnectButton";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Same typefaces Creditcoin's own site uses: Inter for body copy, Tektur for headings.
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+});
+
+const tektur = Tektur({
+  variable: "--font-tektur",
+  subsets: ["latin"],
+  weight: ["500", "600"],
 });
 
 const geistMono = Geist_Mono({
@@ -24,14 +31,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${tektur.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <WalletProvider>
           <header className="border-b border-border">
             <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
-              <Link href="/" className="flex items-center gap-2">
-                <span className="text-lg font-semibold tracking-tight text-ink">Aval</span>
+              <Link href="/" className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground font-display">
+                  A
+                </span>
+                <span className="font-display text-lg font-medium tracking-tight text-ink">Aval</span>
                 <span className="hidden text-xs text-muted sm:inline">documentary credit on Creditcoin</span>
               </Link>
               <nav className="flex items-center gap-4 text-sm text-muted sm:gap-6">

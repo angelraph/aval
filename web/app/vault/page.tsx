@@ -75,7 +75,7 @@ export default function VaultPage() {
 
   return (
     <div className="mx-auto max-w-xl px-5 py-10 sm:px-8 sm:py-14">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Lending pool</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight text-ink">Lending pool</h1>
       <p className="mt-2 text-sm text-muted">
         Lend into AvalCollateralVault. Beneficiaries borrow up to 80% of a funded instrument here,
         and loans repay themselves automatically when Attestcoin proves the presentation.

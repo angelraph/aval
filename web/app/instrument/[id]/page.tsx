@@ -243,7 +243,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="mx-auto max-w-2xl px-5 py-10 sm:px-8 sm:py-14">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">Instrument #{id}</h1>
+        <h1 className="font-display text-2xl font-medium tracking-tight text-ink">Instrument #{id}</h1>
         <StatusBadge status={status} />
       </div>
 

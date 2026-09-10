@@ -88,7 +88,7 @@ export default function IssuePage() {
 
   return (
     <div className="mx-auto max-w-xl px-5 py-10 sm:px-8 sm:py-14">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">Issue an instrument</h1>
+      <h1 className="font-display text-2xl font-medium tracking-tight text-ink">Issue an instrument</h1>
       <p className="mt-2 text-sm text-muted">
         You&apos;re the drawer. Set the terms, and the drawee funds it next.
       </p>
@@ -183,11 +183,7 @@ export default function IssuePage() {
 
         {error && <p className="text-sm text-red-500">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground hover:opacity-90 disabled:opacity-60"
-        >
+        <button type="submit" disabled={submitting} className="btn-primary">
           {submitting ? "Issuing..." : "Issue instrument"}
         </button>
       </form>
