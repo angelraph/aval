@@ -24,7 +24,8 @@
 
 - Created the GitHub repo (public, github.com/angelraph/aval) and pushed everything.
 - Generated a second wallet (the counterparty) and funded it directly from the first, no faucet needed the second time. Added `--as counterparty` to the fund and present scripts so the demo runs as two real, separate wallets: one issuing and relaying proofs, the other funding and presenting as drawee/beneficiary.
-- Ran the full flow again with instrument #2, two wallets this time. Same result: honored automatically once Attestcoin proved the Sepolia presentation.
+- Ran the full flow again with instrument #2, two wallets this time (0x52E8... as drawer/relayer, 0x56d6... as drawee/beneficiary). Same result: honored automatically once Attestcoin proved the Sepolia presentation, paid out to the counterparty wallet, not back to the deployer. Tx: 0x518117ffa8c80cfceac22a574f0dadc8b7a6a3cef2c43762797f03ef7cd877a6.
+- Also created the GitHub repo (public, https://github.com/angelraph/aval) and pushed everything, and gave the proof-relay status panel in the frontend a real step tracker instead of a raw status string.
 - Wrote the three required docs: `docs/attestcoin-integration.md` (the technical write-up), `docs/pitch-deck-outline.md`, `docs/demo-video-script.md`.
 
 ### Next up
