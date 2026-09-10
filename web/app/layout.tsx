@@ -45,7 +45,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   Lend
                 </Link>
                 <a
-                  href="https://github.com"
+                  href="https://github.com/angelraph/aval"
                   className="hidden hover:text-ink sm:inline"
                   target="_blank"
                   rel="noreferrer"

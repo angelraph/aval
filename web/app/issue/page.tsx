@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Contract, ZeroAddress, keccak256, parseEther, parseUnits, toUtf8Bytes } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
-import { switchNetwork, CREDITCOIN_TESTNET } from "@/lib/wallet";
+import { CREDITCOIN_TESTNET } from "@/lib/wallet";
 import {
   AVAL_INSTRUMENT_ADDRESS,
   AVAL_TEST_TOKEN_ADDRESS,
@@ -16,7 +16,7 @@ import { getCreditcoinReadProvider } from "@/lib/readProvider";
 import { ConnectButton } from "@/components/ConnectButton";
 
 export default function IssuePage() {
-  const { address, connect, getSigner } = useWallet();
+  const { address, connect, getSigner, switchNetwork } = useWallet();
   const router = useRouter();
 
   const [drawee, setDrawee] = useState("");

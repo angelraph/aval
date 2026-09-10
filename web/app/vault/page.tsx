@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Contract, formatEther, parseEther } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
-import { switchNetwork, CREDITCOIN_TESTNET } from "@/lib/wallet";
+import { CREDITCOIN_TESTNET } from "@/lib/wallet";
 import { AVAL_COLLATERAL_VAULT_ADDRESS, AvalCollateralVaultABI } from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
 import { ConnectButton } from "@/components/ConnectButton";
 
 export default function VaultPage() {
-  const { address, connect, getSigner } = useWallet();
+  const { address, connect, getSigner, switchNetwork } = useWallet();
 
   const [availableLiquidity, setAvailableLiquidity] = useState<bigint | null>(null);
   const [totalLenderPrincipal, setTotalLenderPrincipal] = useState<bigint | null>(null);

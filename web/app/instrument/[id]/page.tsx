@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useState } from "react";
 import { Contract, formatEther, keccak256, toUtf8Bytes, ZeroAddress } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
-import { switchNetwork, CREDITCOIN_TESTNET, SEPOLIA, shortenAddress } from "@/lib/wallet";
+import { CREDITCOIN_TESTNET, SEPOLIA, shortenAddress } from "@/lib/wallet";
 import {
   AVAL_INSTRUMENT_ADDRESS,
   AVAL_PRESENTMENT_ADDRESS,
@@ -41,7 +41,7 @@ interface HistoryEntry {
 
 export default function InstrumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { address, connect, getSigner } = useWallet();
+  const { address, connect, getSigner, switchNetwork } = useWallet();
 
   const [inst, setInst] = useState<InstrumentData | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);

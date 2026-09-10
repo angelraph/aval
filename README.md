@@ -38,6 +38,93 @@ money in bank fees. It also depends entirely on trusting both banks to do their 
 If the document never gets presented before the deadline, the drawee gets the escrow back
 automatically.
 
+## Architecture
+
+Four pieces, two chains, no piece in the middle that has to be trusted:
+
+```mermaid
+flowchart LR
+    subgraph Users
+        Drawer
+        Drawee
+        Beneficiary
+        Lender
+    end
+
+    subgraph Frontend["Frontend (Next.js)"]
+        UI["Desk / Issue / Instrument / Lend"]
+        Relay["Proof relay (background job)"]
+    end
+
+    subgraph Sepolia["Sepolia (source chain)"]
+        Presentment[AvalPresentment]
+    end
+
+    subgraph Attestcoin["Attestcoin Protocol"]
+        ProofBuilder[Proof builder]
+        Precompile["Block prover precompile"]
+    end
+
+    subgraph Creditcoin["Creditcoin CC3 testnet"]
+        Instrument[AvalInstrument]
+        Vault[AvalCollateralVault]
+    end
+
+    Drawer -- issue --> UI
+    Drawee -- fund --> UI
+    Beneficiary -- present --> UI
+    Lender -- deposit / borrow --> UI
+
+    UI -- issue, fund --> Instrument
+    UI -- presentDocument --> Presentment
+    UI -- pledge, borrow --> Vault
+
+    Presentment -- DocumentPresented event --> ProofBuilder
+    ProofBuilder -- inclusion + continuity proof --> Relay
+    Relay -- "execute(proof)" --> Instrument
+    Instrument -- verifyAndEmit --> Precompile
+    Precompile -- verified --> Instrument
+    Instrument -- payout --> Beneficiary
+    Instrument -- payout redirect --> Vault
+    Vault -- loan repayment --> Beneficiary
+```
+
+`AvalInstrument` never asks Attestcoin's off-chain services to be trusted, only the precompile,
+which is part of Creditcoin itself. Everything upstream of that (the proof builder, the relay) is
+just plumbing to get a proof in front of the contract; none of it can make the contract accept a
+proof that isn't real.
+
+The proof lifecycle, in order:
+
+```mermaid
+sequenceDiagram
+    participant Drawer
+    participant Drawee
+    participant Beneficiary
+    participant Instrument as AvalInstrument (Creditcoin)
+    participant Presentment as AvalPresentment (Sepolia)
+    participant Attestcoin as Attestcoin Protocol
+    participant Relayer
+
+    Drawer->>Instrument: issue(drawee, beneficiary, token, amount, docHash, expiry)
+    Drawee->>Instrument: fund(id)
+    Note over Instrument: Escrow locked
+    Beneficiary->>Presentment: presentDocument(id, docHash)
+    Note over Presentment: DocumentPresented event emitted
+    Relayer->>Attestcoin: wait for attestation, fetch proof
+    Attestcoin-->>Relayer: inclusion + continuity proof
+    Relayer->>Instrument: execute(proof)
+    Instrument->>Attestcoin: verifyAndEmit(proof)
+    Attestcoin-->>Instrument: verified
+    Instrument->>Instrument: decode log, check docHash matches
+    Instrument->>Beneficiary: payout (native CTC or ERC20)
+    Note over Instrument: Status: Honored
+```
+
+`Relayer` is just whoever pays the Creditcoin gas to submit the proof, the frontend's own wallet
+by default, so the beneficiary never needs testnet CTC of their own. `execute()` is permissionless:
+anyone submitting the same valid proof gets the same result, the relayer has no special power.
+
 ## Instrument financing
 
 A beneficiary does not have to wait out the full presentment window to get paid. Once an

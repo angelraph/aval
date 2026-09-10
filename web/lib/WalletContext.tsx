@@ -1,15 +1,24 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { BrowserProvider, JsonRpcSigner } from "ethers";
-import { connectWallet, getBrowserProvider, hasInjectedWallet } from "./wallet";
+import { connectWallet, getBrowserProvider, hasInjectedWallet, switchNetwork as switchNetworkRaw } from "./wallet";
+import { subscribeToWallets, EIP6963ProviderDetail } from "./eip6963";
+import { CREDITCOIN_TESTNET, SEPOLIA } from "./contracts";
+
+const LAST_WALLET_KEY = "aval:lastWalletRdns";
+
+type NetworkConfig = typeof CREDITCOIN_TESTNET | typeof SEPOLIA;
 
 interface WalletState {
   address: string | null;
   chainId: string | null;
   connecting: boolean;
-  connect: () => Promise<void>;
+  wallets: EIP6963ProviderDetail[];
+  activeWalletName: string | null;
+  connect: (wallet?: EIP6963ProviderDetail) => Promise<void>;
   getSigner: () => Promise<JsonRpcSigner>;
+  switchNetwork: (network: NetworkConfig) => Promise<void>;
 }
 
 const WalletContext = createContext<WalletState | null>(null);
@@ -18,13 +27,35 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null);
   const [chainId, setChainId] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [wallets, setWallets] = useState<EIP6963ProviderDetail[]>([]);
+  const [activeWalletName, setActiveWalletName] = useState<string | null>(null);
 
-  const connect = useCallback(async () => {
+  // The raw EIP-1193 provider currently in use, kept in a ref so it survives without triggering
+  // re-renders, and so getSigner/switchNetwork always act on whichever wallet the user picked.
+  const activeProvider = useRef<any>(null);
+
+  useEffect(() => {
+    return subscribeToWallets(setWallets);
+  }, []);
+
+  const connect = useCallback(async (wallet?: EIP6963ProviderDetail) => {
     setConnecting(true);
     try {
-      const account = await connectWallet();
+      const raw = wallet?.provider ?? activeProvider.current ?? (hasInjectedWallet() ? window.ethereum : null);
+      if (!raw) {
+        throw new Error("No wallet found. Install a wallet extension to continue.");
+      }
+
+      const account = await connectWallet(raw);
+      activeProvider.current = raw;
       setAddress(account);
-      const provider = getBrowserProvider();
+      setActiveWalletName(wallet?.info.name ?? "Wallet");
+
+      if (wallet) {
+        localStorage.setItem(LAST_WALLET_KEY, wallet.info.rdns);
+      }
+
+      const provider = getBrowserProvider(raw);
       const network = await provider.getNetwork();
       setChainId("0x" + network.chainId.toString(16));
     } finally {
@@ -33,12 +64,46 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const getSigner = useCallback(async () => {
-    const provider = getBrowserProvider();
+    const raw = activeProvider.current ?? (hasInjectedWallet() ? window.ethereum : null);
+    if (!raw) throw new Error("No wallet connected.");
+    const provider = getBrowserProvider(raw);
     return provider.getSigner();
   }, []);
 
+  const switchNetwork = useCallback(async (network: NetworkConfig) => {
+    const raw = activeProvider.current ?? (hasInjectedWallet() ? window.ethereum : null);
+    await switchNetworkRaw(network, raw);
+  }, []);
+
+  // Try to silently pick back up a previously connected wallet on reload, without prompting.
   useEffect(() => {
-    if (!hasInjectedWallet()) return;
+    if (wallets.length === 0) return;
+
+    (async () => {
+      const lastRdns = localStorage.getItem(LAST_WALLET_KEY);
+      const remembered = lastRdns ? wallets.find((w) => w.info.rdns === lastRdns) : null;
+      const candidate = remembered ?? (wallets.length === 1 ? wallets[0] : null);
+      if (!candidate) return;
+
+      try {
+        const provider = new BrowserProvider(candidate.provider);
+        const accounts = await provider.listAccounts();
+        if (accounts[0]) {
+          activeProvider.current = candidate.provider;
+          setAddress(accounts[0].address);
+          setActiveWalletName(candidate.info.name);
+          const network = await provider.getNetwork();
+          setChainId("0x" + network.chainId.toString(16));
+        }
+      } catch {
+        // Not connected yet, that's fine, the user just hasn't approved this wallet.
+      }
+    })();
+  }, [wallets]);
+
+  useEffect(() => {
+    const raw = activeProvider.current;
+    if (!raw?.on) return;
 
     const handleAccountsChanged = (accounts: string[]) => {
       setAddress(accounts[0] ?? null);
@@ -47,28 +112,19 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       setChainId(newChainId);
     };
 
-    window.ethereum.on?.("accountsChanged", handleAccountsChanged);
-    window.ethereum.on?.("chainChanged", handleChainChanged);
-
-    // Pick up an already-connected account without prompting.
-    (async () => {
-      const provider = new BrowserProvider(window.ethereum);
-      const accounts = await provider.listAccounts();
-      if (accounts[0]) {
-        setAddress(accounts[0].address);
-        const network = await provider.getNetwork();
-        setChainId("0x" + network.chainId.toString(16));
-      }
-    })();
+    raw.on("accountsChanged", handleAccountsChanged);
+    raw.on("chainChanged", handleChainChanged);
 
     return () => {
-      window.ethereum.removeListener?.("accountsChanged", handleAccountsChanged);
-      window.ethereum.removeListener?.("chainChanged", handleChainChanged);
+      raw.removeListener?.("accountsChanged", handleAccountsChanged);
+      raw.removeListener?.("chainChanged", handleChainChanged);
     };
-  }, []);
+  }, [address]);
 
   return (
-    <WalletContext.Provider value={{ address, chainId, connecting, connect, getSigner }}>
+    <WalletContext.Provider
+      value={{ address, chainId, connecting, wallets, activeWalletName, connect, getSigner, switchNetwork }}
+    >
       {children}
     </WalletContext.Provider>
   );
