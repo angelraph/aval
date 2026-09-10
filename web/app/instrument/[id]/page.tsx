@@ -301,15 +301,22 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
 
       {relayJob && (
         <Action title="Attestcoin proof status">
-          <p className="text-sm font-medium text-ink">{relayJob.status}</p>
-          <div className="mt-2 max-h-48 overflow-y-auto rounded-md bg-background p-3 font-mono text-xs text-muted">
-            {relayJob.log?.map((line: string, i: number) => <div key={i}>{line}</div>)}
-            {relayJob.log?.length === 0 && <div>Starting...</div>}
-          </div>
+          <RelaySteps status={relayJob.status} />
+          {relayJob.status === "error" && (
+            <p className="mt-3 text-sm text-red-500">{relayJob.error ?? "Something went wrong."}</p>
+          )}
+          <details className="mt-3">
+            <summary className="cursor-pointer text-xs text-muted">Show details</summary>
+            <div className="mt-2 max-h-48 overflow-y-auto rounded-md bg-background p-3 font-mono text-xs text-muted">
+              {relayJob.log?.map((line: string, i: number) => <div key={i}>{line}</div>)}
+              {relayJob.log?.length === 0 && <div>Starting...</div>}
+            </div>
+          </details>
           {relayJob.status === "waiting-for-attestation" && (
-            <p className="mt-2 text-xs text-muted">
-              This step waits for Attestcoin to attest the block on Creditcoin, usually a few minutes.
-              Feel free to leave this open, it keeps polling.
+            <p className="mt-3 text-xs text-muted">
+              Attestcoin has to see this transaction&apos;s block and prove it on Creditcoin. That
+              takes several minutes on testnet. This keeps polling on its own, the page is safe to
+              leave open or come back to later.
             </p>
           )}
         </Action>
@@ -367,6 +374,41 @@ function Action({ title, children }: { title: string; children: React.ReactNode 
     <div className="mt-6 rounded-lg border border-border bg-panel p-5">
       <h2 className="text-sm font-semibold text-ink">{title}</h2>
       <div className="mt-3">{children}</div>
+    </div>
+  );
+}
+
+const RELAY_STEPS = [
+  { key: "waiting-for-mining", label: "Mined on Sepolia" },
+  { key: "waiting-for-attestation", label: "Attested by Attestcoin" },
+  { key: "generating-proof", label: "Proof generated" },
+  { key: "submitting", label: "Verified on Creditcoin" },
+  { key: "done", label: "Honored" },
+] as const;
+
+function RelaySteps({ status }: { status: string }) {
+  const currentIndex = status === "error" ? -1 : RELAY_STEPS.findIndex((s) => s.key === status);
+
+  return (
+    <div className="flex flex-col gap-2">
+      {RELAY_STEPS.map((step, i) => {
+        const isDone = status === "done" ? true : i < currentIndex;
+        const isCurrent = i === currentIndex && status !== "done";
+        return (
+          <div key={step.key} className="flex items-center gap-3 text-sm">
+            <span
+              className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                isDone
+                  ? "bg-emerald-500"
+                  : isCurrent
+                    ? "animate-pulse bg-accent"
+                    : "bg-border"
+              }`}
+            />
+            <span className={isDone || isCurrent ? "text-ink" : "text-muted"}>{step.label}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
