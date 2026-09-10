@@ -20,8 +20,15 @@
 - Ran the full flow live, for real, not simulated: issued an instrument, funded it, presented a document on Sepolia, and let the Attestcoin Protocol prove it. It worked. The proof verified on-chain and the escrow released automatically. Instrument #1 is sitting on Creditcoin CC3 testnet right now with status "Honored". This was the biggest technical risk in the whole project and it's cleared.
 - Built out the frontend: wallet connect and network switching, a Desk that reads instruments straight off the chain, an Issue form, an instrument detail page with fund/present/verify actions and a live proof relay (with on-chain history), and a lending page for the vault. Checked all of it on both desktop and mobile widths.
 
+### Later still
+
+- Created the GitHub repo (public, github.com/angelraph/aval) and pushed everything.
+- Generated a second wallet (the counterparty) and funded it directly from the first, no faucet needed the second time. Added `--as counterparty` to the fund and present scripts so the demo runs as two real, separate wallets: one issuing and relaying proofs, the other funding and presenting as drawee/beneficiary.
+- Ran the full flow again with instrument #2, two wallets this time. Same result: honored automatically once Attestcoin proved the Sepolia presentation.
+- Wrote the three required docs: `docs/attestcoin-integration.md` (the technical write-up), `docs/pitch-deck-outline.md`, `docs/demo-video-script.md`.
+
 ### Next up
 
-- Get a second wallet (or two) involved so the demo shows a real drawer/drawee/beneficiary split instead of one wallet playing every role.
 - Polish the presentment/verify flow UX (it currently makes the beneficiary sit through a several-minute wait for attestation, worth a better loading state).
-- Start on the docs: technical write-up, pitch deck outline, demo video script.
+- Record the actual demo video.
+- Consider ERC20/stablecoin settlement instead of only native CTC, time permitting.
