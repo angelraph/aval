@@ -1,12 +1,16 @@
 import AvalInstrumentAbi from './abi/AvalInstrument.json';
 import AvalPresentmentAbi from './abi/AvalPresentment.json';
 import AvalCollateralVaultAbi from './abi/AvalCollateralVault.json';
+import AvalTestTokenAbi from './abi/AvalTestToken.json';
 
 // Filled in once the contracts are deployed to testnet. Kept here, in one place, instead of
 // scattered through the pages that need them.
 export const AVAL_INSTRUMENT_ADDRESS = process.env.NEXT_PUBLIC_AVAL_INSTRUMENT_ADDRESS ?? '';
 export const AVAL_PRESENTMENT_ADDRESS = process.env.NEXT_PUBLIC_AVAL_PRESENTMENT_ADDRESS ?? '';
 export const AVAL_COLLATERAL_VAULT_ADDRESS = process.env.NEXT_PUBLIC_AVAL_COLLATERAL_VAULT_ADDRESS ?? '';
+export const AVAL_TEST_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_AVAL_TEST_TOKEN_ADDRESS ?? '';
+export const AVAL_TEST_TOKEN_SYMBOL = 'aTUSD';
+export const AVAL_TEST_TOKEN_DECIMALS = 6;
 
 // The block AvalInstrument was deployed at, so event log scans don't have to search from
 // genesis (the public RPC rejects overly wide eth_getLogs ranges in one call).
@@ -31,5 +35,6 @@ export const SEPOLIA = {
 export const AvalInstrumentABI = AvalInstrumentAbi;
 export const AvalPresentmentABI = AvalPresentmentAbi;
 export const AvalCollateralVaultABI = AvalCollateralVaultAbi;
+export const AvalTestTokenABI = AvalTestTokenAbi;
 
 export const InstrumentStatus = ['Issued', 'Funded', 'Honored', 'Expired'] as const;

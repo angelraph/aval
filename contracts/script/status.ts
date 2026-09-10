@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { loadEnv, requireEnv } from './lib/env';
 import { loadArtifact } from './lib/artifacts';
+import { formatInstrumentAmount } from './lib/formatAmount';
 
 loadEnv();
 
@@ -28,7 +29,8 @@ async function main() {
   console.log(`  drawer:       ${inst.drawer}`);
   console.log(`  drawee:       ${inst.drawee}`);
   console.log(`  beneficiary:  ${inst.beneficiary}`);
-  console.log(`  amount:       ${ethers.formatEther(inst.amount)} CTC`);
+  console.log(`  token:        ${inst.token === ethers.ZeroAddress ? 'native CTC' : inst.token}`);
+  console.log(`  amount:       ${formatInstrumentAmount(inst.amount, inst.token)}`);
   console.log(`  requiredDoc:  ${inst.requiredDocumentHash}`);
   console.log(`  expiryBlock:  ${inst.expiryBlock} (current: ${currentBlock})`);
   console.log(`  payoutRedirect: ${inst.payoutRedirect === ethers.ZeroAddress ? 'none' : inst.payoutRedirect}`);

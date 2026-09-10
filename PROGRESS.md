@@ -28,8 +28,15 @@
 - Also created the GitHub repo (public, https://github.com/angelraph/aval) and pushed everything, and gave the proof-relay status panel in the frontend a real step tracker instead of a raw status string.
 - Wrote the three required docs: `docs/attestcoin-integration.md` (the technical write-up), `docs/pitch-deck-outline.md`, `docs/demo-video-script.md`.
 
+### Still going
+
+- Added ERC20 settlement to AvalInstrument: an instrument can now escrow either native CTC or an ERC20, decided at issuance. Deployed AvalTestToken (aTUSD, a mock stablecoin) to try it with. 6 new tests for the token path, 29 total, all passing. The collateral vault stays native-CTC-only for now (documented why), issue.ts/fund.ts and the frontend both updated to handle either asset.
+- Had to redeploy AvalInstrument and AvalCollateralVault after that change (new ABI, old deployed bytecode doesn't match). Re-registered the source contract. Old instruments #1 and #2 are still there, honored, just on the previous deployment, addresses updated everywhere they're referenced.
+- Ran the full flow a third time, this time settled in aTUSD instead of CTC. Honored correctly, balance confirmed on-chain afterward.
+- Deployed the frontend to Vercel: https://aval-three-phi.vercel.app, all env vars set, checked it live in the browser against the real deployed contracts, not just locally.
+
 ### Next up
 
 - Polish the presentment/verify flow UX (it currently makes the beneficiary sit through a several-minute wait for attestation, worth a better loading state).
 - Record the actual demo video.
-- Consider ERC20/stablecoin settlement instead of only native CTC, time permitting.
+- Fill in the DoraHacks submission form.

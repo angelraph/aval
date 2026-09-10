@@ -31,7 +31,7 @@ contract AvalCollateralVaultTest is Test {
 
     function _issueAndFund() internal returns (uint256 id) {
         vm.prank(drawer);
-        id = aval.issue(drawee, beneficiary, instrumentAmount, DOC_HASH, block.number + 1000);
+        id = aval.issue(drawee, beneficiary, address(0), instrumentAmount, DOC_HASH, block.number + 1000);
         vm.prank(drawee);
         aval.fund{value: instrumentAmount}(id);
     }
@@ -139,7 +139,7 @@ contract AvalCollateralVaultTest is Test {
         vault.deposit{value: 5 ether}();
 
         vm.prank(drawer);
-        uint256 id = aval.issue(drawee, beneficiary, instrumentAmount, DOC_HASH, block.number + 5);
+        uint256 id = aval.issue(drawee, beneficiary, address(0), instrumentAmount, DOC_HASH, block.number + 5);
         vm.prank(drawee);
         aval.fund{value: instrumentAmount}(id);
 

@@ -2,6 +2,7 @@ import { ethers } from 'ethers';
 import { proofProvider, chainInfo } from '@gluwa/usc-sdk';
 import { loadEnv, requireEnv } from './lib/env';
 import { loadArtifact } from './lib/artifacts';
+import { formatInstrumentAmount } from './lib/formatAmount';
 
 loadEnv();
 
@@ -98,8 +99,9 @@ async function main() {
     .find((parsed: any) => parsed?.name === 'InstrumentHonored');
 
   if (honoredEvent) {
+    const inst = await instrument.getInstrument(instrumentId);
     console.log(
-      `Instrument ${honoredEvent.args.id} honored. Paid ${ethers.formatEther(honoredEvent.args.amount)} CTC to ${honoredEvent.args.paidTo}.`
+      `Instrument ${honoredEvent.args.id} honored. Paid ${formatInstrumentAmount(honoredEvent.args.amount, inst.token)} to ${honoredEvent.args.paidTo}.`
     );
   } else {
     console.log('No InstrumentHonored event found in the receipt, check the instrument status directly.');

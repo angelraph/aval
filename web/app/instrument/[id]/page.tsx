@@ -12,10 +12,12 @@ import {
   AvalInstrumentABI,
   AvalPresentmentABI,
   AvalCollateralVaultABI,
+  AvalTestTokenABI,
   InstrumentStatus,
 } from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
 import { queryFilterChunked } from "@/lib/queryLogs";
+import { formatInstrumentAmount, isNativeToken } from "@/lib/tokenFormat";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConnectButton } from "@/components/ConnectButton";
 
@@ -23,6 +25,7 @@ interface InstrumentData {
   drawer: string;
   drawee: string;
   beneficiary: string;
+  token: string;
   amount: bigint;
   requiredDocumentHash: string;
   expiryBlock: bigint;
@@ -76,7 +79,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
       const parsed = contract.interface.parseLog(log);
       entries.push({
         label: "Funded",
-        detail: `${formatEther(parsed!.args.amount)} CTC locked in escrow`,
+        detail: `${formatInstrumentAmount(parsed!.args.amount, data.token)} locked in escrow`,
         txHash: log.transactionHash,
       });
     }
@@ -84,7 +87,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
       const parsed = contract.interface.parseLog(log);
       entries.push({
         label: "Honored",
-        detail: `Paid ${formatEther(parsed!.args.amount)} CTC to ${shortenAddress(parsed!.args.paidTo)}, document hash ${parsed!.args.documentHash}`,
+        detail: `Paid ${formatInstrumentAmount(parsed!.args.amount, data.token)} to ${shortenAddress(parsed!.args.paidTo)}, document hash ${parsed!.args.documentHash}`,
         txHash: log.transactionHash,
       });
     }
@@ -123,8 +126,20 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
       await switchNetwork(CREDITCOIN_TESTNET);
       const signer = await getSigner();
       const contract = new Contract(AVAL_INSTRUMENT_ADDRESS, AvalInstrumentABI, signer);
-      const tx = await contract.fund(id, { value: inst.amount });
-      await tx.wait();
+
+      if (isNativeToken(inst.token)) {
+        const tx = await contract.fund(id, { value: inst.amount });
+        await tx.wait();
+      } else {
+        const token = new Contract(inst.token, AvalTestTokenABI, signer);
+        const allowance: bigint = await token.allowance(address, AVAL_INSTRUMENT_ADDRESS);
+        if (allowance < inst.amount) {
+          const approveTx = await token.approve(AVAL_INSTRUMENT_ADDRESS, inst.amount);
+          await approveTx.wait();
+        }
+        const tx = await contract.fund(id);
+        await tx.wait();
+      }
       await refresh();
     } catch (err: any) {
       setError(err.shortMessage ?? err.message ?? String(err));
@@ -236,7 +251,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
         <Detail label="Drawer" value={shortenAddress(inst.drawer)} />
         <Detail label="Drawee" value={shortenAddress(inst.drawee)} />
         <Detail label="Beneficiary" value={shortenAddress(inst.beneficiary)} />
-        <Detail label="Amount" value={`${formatEther(inst.amount)} CTC`} />
+        <Detail label="Amount" value={formatInstrumentAmount(inst.amount, inst.token)} />
         <Detail label="Expiry block" value={`${inst.expiryBlock} ${isExpired ? "(passed)" : ""}`} />
         <Detail label="Payout redirect" value={isPledged ? shortenAddress(inst.payoutRedirect) : "none"} />
         <div className="sm:col-span-2">
@@ -259,7 +274,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
       {isDrawee && status === "Issued" && !isExpired && (
         <Action title="Fund this instrument">
           <button onClick={handleFund} disabled={busy === "fund"} className="btn-primary">
-            {busy === "fund" ? "Funding..." : `Fund ${formatEther(inst.amount)} CTC`}
+            {busy === "fund" ? "Funding..." : `Fund ${formatInstrumentAmount(inst.amount, inst.token)}`}
           </button>
         </Action>
       )}
@@ -322,7 +337,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
         </Action>
       )}
 
-      {isBeneficiary && status === "Funded" && !isPledged && !isExpired && (
+      {isBeneficiary && status === "Funded" && !isPledged && !isExpired && isNativeToken(inst.token) && (
         <Action title="Borrow against this instrument">
           <p className="text-sm text-muted">
             Borrow 80% of the instrument now from AvalCollateralVault. The loan repays itself out of

@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Contract, formatEther } from "ethers";
+import { Contract } from "ethers";
 import { AVAL_INSTRUMENT_ADDRESS, AvalInstrumentABI, InstrumentStatus } from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
+import { formatInstrumentAmount } from "@/lib/tokenFormat";
 import { StatusBadge } from "@/components/StatusBadge";
 import { shortenAddress } from "@/lib/wallet";
 
@@ -44,7 +45,7 @@ export default function DeskPage() {
               drawer: inst.drawer,
               drawee: inst.drawee,
               beneficiary: inst.beneficiary,
-              amount: formatEther(inst.amount),
+              amount: formatInstrumentAmount(inst.amount, inst.token),
               status: InstrumentStatus[Number(inst.status)],
               expiryBlock: inst.expiryBlock,
             };
@@ -102,7 +103,7 @@ export default function DeskPage() {
               </p>
             </div>
             <div className="text-left text-sm text-muted sm:text-right">
-              <p className="font-medium text-ink">{row.amount} CTC</p>
+              <p className="font-medium text-ink">{row.amount}</p>
               <p>expires at block {row.expiryBlock.toString()}</p>
             </div>
           </Link>

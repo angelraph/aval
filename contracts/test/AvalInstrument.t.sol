@@ -29,7 +29,7 @@ contract AvalInstrumentTest is Test {
 
     function _issue(uint256 expiryBlock) internal returns (uint256 id) {
         vm.prank(drawer);
-        id = aval.issue(drawee, beneficiary, instrumentAmount, DOC_HASH, expiryBlock);
+        id = aval.issue(drawee, beneficiary, address(0), instrumentAmount, DOC_HASH, expiryBlock);
     }
 
     function _fund(uint256 id) internal {

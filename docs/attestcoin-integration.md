@@ -89,13 +89,22 @@ one thing on top: deciding that a `DocumentPresented` event from the registered 
 naming a funded instrument, with a matching document hash, means "pay out." That's the whole
 surface area of trust Aval is responsible for.
 
+## Settlement asset
+
+None of this depends on what actually moves when an instrument is honored. `AvalInstrument`
+escrows either native CTC or an ERC20, decided per instrument at issuance, and the honor path
+pays out in whichever it was funded in. The Attestcoin verification is identical either way. The
+collateral vault is native CTC only for now, since it's notified of a payout with a value-carrying
+call, which only makes sense for CTC, an ERC20-aware version of the vault is a natural next step.
+
 ## Contracts
 
 | Contract | Network | Address |
 |---|---|---|
-| AvalInstrument | Creditcoin CC3 testnet | `0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141` |
-| AvalCollateralVault | Creditcoin CC3 testnet | `0xBf9A5Bc472c27475F5b5276780a8D74EEfAB235A` |
+| AvalInstrument | Creditcoin CC3 testnet | `0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE` |
+| AvalCollateralVault | Creditcoin CC3 testnet | `0x1584A2252694E957e8B569d6F55A1C856aEa4a94` |
 | AvalPresentment | Sepolia | `0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141` |
+| AvalTestToken (aTUSD) | Creditcoin CC3 testnet | `0xff726e92187002ef2615b80FbE67c79b9DF6a2ec` |
 
 Source: `contracts/src/AvalInstrument.sol`, `contracts/src/AvalPresentment.sol`,
 `contracts/src/AvalCollateralVault.sol`. Tests: `contracts/test/`.

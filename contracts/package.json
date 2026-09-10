@@ -8,6 +8,8 @@
     "test": "forge test -vv",
     "deploy:creditcoin": "tsx script/deploy-creditcoin.ts",
     "deploy:sepolia": "tsx script/deploy-sepolia.ts",
+    "deploy:test-token": "tsx script/deploy-test-token.ts",
+    "mint:test-token": "tsx script/mint-test-token.ts",
     "register:source": "tsx script/register-source.ts",
     "issue": "tsx script/issue.ts",
     "fund": "tsx script/fund.ts",

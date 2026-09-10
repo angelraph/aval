@@ -3,6 +3,8 @@ pragma solidity ^0.8.28;
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ASCBase} from "@gluwa/asc-contracts/contracts/readability/ASCBase.sol";
 import {EvmV1Decoder} from "@gluwa/asc-contracts/contracts/common/EvmV1Decoder.sol";
 
@@ -10,11 +12,13 @@ import {IAvalPayoutReceiver} from "./IAvalPayoutReceiver.sol";
 
 /// @title AvalInstrument
 /// @notice A documentary credit escrow on Creditcoin. A drawer issues an instrument naming a
-/// drawee, a beneficiary and a required document hash. The drawee funds it. The instrument is
-/// honored, and escrow released, the moment the Attestcoin Protocol proves that a matching
-/// DocumentPresented event happened on the registered source-chain AvalPresentment contract.
-/// No bank, no custodial oracle and no bridge operator ever touches the funds or the decision.
+/// drawee, a beneficiary and a required document hash. The drawee funds it, in native CTC or an
+/// ERC20 (a stablecoin, in practice). The instrument is honored, and escrow released, the moment
+/// the Attestcoin Protocol proves that a matching DocumentPresented event happened on the
+/// registered source-chain AvalPresentment contract. No bank, no custodial oracle and no bridge
+/// operator ever touches the funds or the decision.
 contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
+    using SafeERC20 for IERC20;
     enum Status {
         Issued,
         Funded,
@@ -35,6 +39,7 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
         address drawer;
         address drawee;
         address beneficiary;
+        address token; // the zero address means native CTC, otherwise an ERC20
         uint256 amount;
         bytes32 requiredDocumentHash;
         uint256 expiryBlock;
@@ -55,6 +60,7 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
         address indexed drawer,
         address indexed drawee,
         address beneficiary,
+        address token,
         uint256 amount,
         bytes32 requiredDocumentHash,
         uint256 expiryBlock
@@ -78,7 +84,8 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
     /// @notice Issue a new instrument. Called by the drawer (exporter/seller).
     /// @param drawee The party expected to fund the instrument.
     /// @param beneficiary The party paid once the instrument is honored.
-    /// @param amount The amount, in wei, the drawee must fund.
+    /// @param token The zero address for native CTC, or an ERC20 token address to settle in.
+    /// @param amount The amount the drawee must fund, in the token's smallest unit.
     /// @param requiredDocumentHash The keccak256 hash of the document that must be presented on
     /// the source chain for this instrument to be honored.
     /// @param expiryBlock The Creditcoin block number after which the instrument can no longer be
@@ -86,6 +93,7 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
     function issue(
         address drawee,
         address beneficiary,
+        address token,
         uint256 amount,
         bytes32 requiredDocumentHash,
         uint256 expiryBlock
@@ -102,6 +110,7 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
             drawer: msg.sender,
             drawee: drawee,
             beneficiary: beneficiary,
+            token: token,
             amount: amount,
             requiredDocumentHash: requiredDocumentHash,
             expiryBlock: expiryBlock,
@@ -109,30 +118,39 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
             payoutRedirect: address(0)
         });
 
-        emit InstrumentIssued(id, msg.sender, drawee, beneficiary, amount, requiredDocumentHash, expiryBlock);
+        emit InstrumentIssued(id, msg.sender, drawee, beneficiary, token, amount, requiredDocumentHash, expiryBlock);
     }
 
-    /// @notice Fund an instrument, locking its full amount in escrow. Called by the drawee.
+    /// @notice Fund an instrument, locking its full amount in escrow. Called by the drawee. For
+    /// an ERC20 instrument, approve this contract for at least the instrument's amount first.
     function fund(uint256 id) external payable nonReentrant {
         Instrument storage inst = instruments[id];
         require(inst.drawer != address(0), "Instrument does not exist");
         require(inst.status == Status.Issued, "Instrument is not awaiting funding");
         require(block.number <= inst.expiryBlock, "Instrument has expired");
         require(msg.sender == inst.drawee, "Only the drawee can fund this instrument");
-        require(msg.value == inst.amount, "Funding amount must match the instrument amount exactly");
+
+        if (inst.token == address(0)) {
+            require(msg.value == inst.amount, "Funding amount must match the instrument amount exactly");
+        } else {
+            require(msg.value == 0, "Do not send native value for an ERC20 instrument");
+            IERC20(inst.token).safeTransferFrom(msg.sender, address(this), inst.amount);
+        }
 
         inst.status = Status.Funded;
-        emit InstrumentFunded(id, msg.value);
+        emit InstrumentFunded(id, inst.amount);
     }
 
     /// @notice Redirect this instrument's payout to another contract, e.g. a collateral vault,
-    /// when the beneficiary pledges it for financing. Only the beneficiary can set this, and only
-    /// while the instrument is funded and not yet honored.
+    /// when the beneficiary pledges it for financing. Only the beneficiary can set this, only
+    /// while the instrument is funded and not yet honored, and only for native CTC instruments:
+    /// the redirect is notified with a value-carrying call, which only makes sense for CTC.
     function setPayoutRedirect(uint256 id, address redirect) external {
         Instrument storage inst = instruments[id];
         require(inst.status == Status.Funded, "Instrument is not funded");
         require(msg.sender == inst.beneficiary, "Only the beneficiary can redirect payout");
         require(redirect != address(0), "Redirect cannot be the zero address");
+        require(inst.token == address(0), "Payout redirect is only supported for native CTC instruments");
 
         inst.payoutRedirect = redirect;
         emit PayoutRedirected(id, redirect);
@@ -151,11 +169,21 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
         inst.status = Status.Expired;
 
         if (wasFunded) {
-            (bool sent, ) = inst.drawee.call{value: amount}("");
-            require(sent, "Refund transfer failed");
+            _payOut(inst.token, inst.drawee, amount);
             emit InstrumentExpired(id, inst.drawee, amount);
         } else {
             emit InstrumentExpired(id, address(0), 0);
+        }
+    }
+
+    /// @dev Pays native CTC or an ERC20 out of this contract's own balance, whichever the
+    /// instrument was funded in.
+    function _payOut(address token, address to, uint256 amount) private {
+        if (token == address(0)) {
+            (bool sent, ) = to.call{value: amount}("");
+            require(sent, "Native transfer failed");
+        } else {
+            IERC20(token).safeTransfer(to, amount);
         }
     }
 
@@ -189,12 +217,13 @@ contract AvalInstrument is Ownable, ReentrancyGuard, ASCBase {
         uint256 amount = inst.amount;
         address redirect = inst.payoutRedirect;
 
+        // setPayoutRedirect only allows a redirect on native CTC instruments, so a value-carrying
+        // call here is always backed by CTC actually held by this contract.
         if (redirect != address(0)) {
             IAvalPayoutReceiver(redirect).onInstrumentHonored{value: amount}(id);
             emit InstrumentHonored(id, redirect, amount, documentHash);
         } else {
-            (bool sent, ) = inst.beneficiary.call{value: amount}("");
-            require(sent, "Payout transfer failed");
+            _payOut(inst.token, inst.beneficiary, amount);
             emit InstrumentHonored(id, inst.beneficiary, amount, documentHash);
         }
     }

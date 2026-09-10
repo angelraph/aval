@@ -2,10 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Contract, keccak256, parseEther, toUtf8Bytes } from "ethers";
+import { Contract, ZeroAddress, keccak256, parseEther, parseUnits, toUtf8Bytes } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
 import { switchNetwork, CREDITCOIN_TESTNET } from "@/lib/wallet";
-import { AVAL_INSTRUMENT_ADDRESS, AvalInstrumentABI } from "@/lib/contracts";
+import {
+  AVAL_INSTRUMENT_ADDRESS,
+  AVAL_TEST_TOKEN_ADDRESS,
+  AVAL_TEST_TOKEN_SYMBOL,
+  AVAL_TEST_TOKEN_DECIMALS,
+  AvalInstrumentABI,
+} from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
 import { ConnectButton } from "@/components/ConnectButton";
 
@@ -15,6 +21,7 @@ export default function IssuePage() {
 
   const [drawee, setDrawee] = useState("");
   const [beneficiary, setBeneficiary] = useState("");
+  const [settleInToken, setSettleInToken] = useState(false);
   const [amount, setAmount] = useState("0.1");
   const [documentText, setDocumentText] = useState("");
   const [expiryBlocks, setExpiryBlocks] = useState("50000");
@@ -42,11 +49,15 @@ export default function IssuePage() {
       const currentBlock = await readProvider.getBlockNumber();
       const expiryBlock = currentBlock + Number(expiryBlocks);
 
+      const token = settleInToken ? AVAL_TEST_TOKEN_ADDRESS : ZeroAddress;
+      const parsedAmount = settleInToken ? parseUnits(amount, AVAL_TEST_TOKEN_DECIMALS) : parseEther(amount);
+
       const instrument = new Contract(AVAL_INSTRUMENT_ADDRESS, AvalInstrumentABI, signer);
       const tx = await instrument.issue(
         drawee,
         beneficiary,
-        parseEther(amount),
+        token,
+        parsedAmount,
         keccak256(toUtf8Bytes(documentText)),
         expiryBlock
       );
@@ -112,7 +123,28 @@ export default function IssuePage() {
           />
         </Field>
 
-        <Field label="Amount (CTC)">
+        <Field label="Settle in">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSettleInToken(false)}
+              className={!settleInToken ? "btn-secondary border-accent" : "btn-secondary"}
+            >
+              Native CTC
+            </button>
+            <button
+              type="button"
+              onClick={() => setSettleInToken(true)}
+              disabled={!AVAL_TEST_TOKEN_ADDRESS}
+              className={settleInToken ? "btn-secondary border-accent" : "btn-secondary"}
+              title={!AVAL_TEST_TOKEN_ADDRESS ? "AvalTestToken is not deployed yet" : undefined}
+            >
+              {AVAL_TEST_TOKEN_SYMBOL} (test stablecoin)
+            </button>
+          </div>
+        </Field>
+
+        <Field label={`Amount (${settleInToken ? AVAL_TEST_TOKEN_SYMBOL : "CTC"})`}>
           <input
             required
             value={amount}

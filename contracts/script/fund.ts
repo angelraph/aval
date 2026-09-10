@@ -25,11 +25,32 @@ async function main() {
   const instrument = new ethers.Contract(instrumentAddress, abi, wallet);
 
   const inst = await instrument.getInstrument(id);
-  console.log(`Funding instrument ${id} with ${ethers.formatEther(inst.amount)} CTC...`);
+  const isNative = inst.token === ethers.ZeroAddress;
 
-  const tx = await instrument.fund(id, { value: inst.amount });
-  const receipt = await tx.wait();
-  console.log(`Funded. Tx hash: ${receipt.hash}`);
+  if (isNative) {
+    console.log(`Funding instrument ${id} with ${ethers.formatEther(inst.amount)} CTC...`);
+    const tx = await instrument.fund(id, { value: inst.amount });
+    const receipt = await tx.wait();
+    console.log(`Funded. Tx hash: ${receipt.hash}`);
+  } else {
+    console.log(`Funding instrument ${id} with ${inst.amount} of token ${inst.token}...`);
+    const erc20Abi = [
+      'function approve(address spender, uint256 amount) returns (bool)',
+      'function allowance(address owner, address spender) view returns (uint256)',
+    ];
+    const token = new ethers.Contract(inst.token, erc20Abi, wallet);
+
+    const allowance = await token.allowance(wallet.address, instrumentAddress);
+    if (allowance < inst.amount) {
+      console.log('Approving AvalInstrument to pull the token...');
+      const approveTx = await token.approve(instrumentAddress, inst.amount);
+      await approveTx.wait();
+    }
+
+    const tx = await instrument.fund(id);
+    const receipt = await tx.wait();
+    console.log(`Funded. Tx hash: ${receipt.hash}`);
+  }
 }
 
 main().catch((error) => {

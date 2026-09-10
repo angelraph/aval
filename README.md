@@ -6,11 +6,14 @@ oracle, or a bridge operator in the loop.
 
 Built for BUIDL CTC 2026 Fall (Creditcoin x Credit Labs), RWA track.
 
+Live app: **https://aval-three-phi.vercel.app**
+
 Live on testnet:
 
-- `AvalInstrument`: [`0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141`](https://creditcoin3-testnet.blockscout.com/address/0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141) on Creditcoin CC3 testnet
-- `AvalCollateralVault`: [`0xBf9A5Bc472c27475F5b5276780a8D74EEfAB235A`](https://creditcoin3-testnet.blockscout.com/address/0xBf9A5Bc472c27475F5b5276780a8D74EEfAB235A) on Creditcoin CC3 testnet
-- `AvalPresentment`: [`0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141`](https://sepolia.etherscan.io/address/0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141) on Sepolia (same address as AvalInstrument by coincidence, they're on different chains)
+- `AvalInstrument`: [`0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE`](https://creditcoin3-testnet.blockscout.com/address/0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE) on Creditcoin CC3 testnet
+- `AvalCollateralVault`: [`0x1584A2252694E957e8B569d6F55A1C856aEa4a94`](https://creditcoin3-testnet.blockscout.com/address/0x1584A2252694E957e8B569d6F55A1C856aEa4a94) on Creditcoin CC3 testnet
+- `AvalPresentment`: [`0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141`](https://sepolia.etherscan.io/address/0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141) on Sepolia
+- `AvalTestToken` (aTUSD, a mock stablecoin for demoing ERC20 settlement): [`0xff726e92187002ef2615b80FbE67c79b9DF6a2ec`](https://creditcoin3-testnet.blockscout.com/address/0xff726e92187002ef2615b80FbE67c79b9DF6a2ec) on Creditcoin CC3 testnet
 
 ## The problem
 
@@ -24,7 +27,8 @@ money in bank fees. It also depends entirely on trusting both banks to do their 
 
 1. A drawer (the exporter) issues an instrument on Creditcoin: an amount, a drawee (the
    importer), a beneficiary to be paid, and the hash of the document that has to be presented.
-2. The drawee funds the instrument. The amount is locked in the contract, not held by a bank.
+2. The drawee funds the instrument, in native CTC or an ERC20 (a stablecoin, in practice). The
+   amount is locked in the contract, not held by a bank.
 3. When the goods ship, the beneficiary presents that document on a source chain (Sepolia in
    this build, any EVM chain the Attestcoin Protocol supports in principle).
 4. The Attestcoin Protocol proves that presentation happened, and Aval's contract on Creditcoin
@@ -67,7 +71,10 @@ docs/        Technical write-up, pitch deck outline, demo video script
 - `AvalPresentment.sol`, deployed on the source chain. The one contract Aval trusts for document
   presentation events.
 - `AvalCollateralVault.sol`, deployed on Creditcoin. The instrument financing pool described
-  above.
+  above. Native CTC instruments only, for now: it's notified of a payout with a value-carrying
+  call, which doesn't make sense for an ERC20.
+- `AvalTestToken.sol`, deployed on Creditcoin. A mock stablecoin (aTUSD, 6 decimals, mints
+  freely) for demoing an instrument settled in an ERC20 instead of native CTC.
 
 Run the test suite:
 
@@ -108,12 +115,23 @@ npm run present -- <instrumentId> "<document text>" --as counterparty
 `verify-proof` stays as the first wallet: `execute()` is permissionless, so it's just paying the
 Creditcoin gas to relay a proof, not acting as a party to the trade.
 
+To settle in aTUSD instead of native CTC, deploy the token, mint some, and pass `test` as a sixth
+argument to `issue` (amounts are then read as the token's own 6-decimal units, e.g. `10000000` is
+10.00 aTUSD):
+
+```bash
+npm run deploy:test-token
+npm run mint:test-token -- <to> <amount>
+npm run issue -- <drawee> <beneficiary> <amount> "<document text>" <expiryBlocksFromNow> test
+```
+
 ## Status
 
-Live on testnet, both sides of the flow tested end to end with two separate wallets: an
-instrument issued, funded, presented on Sepolia, proven by Attestcoin, and honored on Creditcoin
-automatically. The frontend (Desk, Issue, instrument detail with fund/present/verify, and the
-lending pool) is up and wired to the live contracts. See `PROGRESS.md` for the day-by-day log.
+Live on testnet and deployed at https://aval-three-phi.vercel.app. The full flow has been run end
+to end three times for real: once single-wallet, once as two separate wallets settling in native
+CTC, and once as two separate wallets settling in the ERC20 test stablecoin. All three honored
+correctly. The frontend (Desk, Issue, instrument detail with fund/present/verify, and the lending
+pool) is live and wired to the deployed contracts. See `PROGRESS.md` for the day-by-day log.
 
 ## License
 
