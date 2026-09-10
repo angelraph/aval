@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const steps = [
   {
     title: "Issue",
@@ -30,6 +32,14 @@ export default function Home() {
           replaces the manual check with a proof: Creditcoin&apos;s Attestcoin Protocol verifies
           that a shipment document was presented on another chain, and the escrow releases itself.
         </p>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <Link href="/desk" className="btn-primary">
+            View the desk
+          </Link>
+          <Link href="/issue" className="btn-secondary">
+            Issue an instrument
+          </Link>
+        </div>
       </section>
 
       <section className="mt-14">
@@ -67,8 +77,8 @@ export default function Home() {
 
       <section className="mt-14 text-sm text-muted">
         <p>
-          Contracts are written, tested, and being deployed to Creditcoin CC3 testnet and Sepolia.
-          The live demo goes here once that&apos;s done. Follow along in the repository.
+          Live on Creditcoin CC3 testnet and Sepolia. Open the desk to see real instruments moving
+          through escrow, or issue one yourself.
         </p>
       </section>
     </div>
