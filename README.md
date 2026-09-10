@@ -148,7 +148,7 @@ decide what counts as a valid inclusion proof. That part stays exactly as audite
 ```
 contracts/   Solidity contracts, Foundry tests, and the TypeScript deployment/demo scripts
 web/         Frontend
-docs/        Technical write-up, pitch deck outline, demo video script
+docs/        Technical write-up, pitch deck outline, demo video script, testing guide
 ```
 
 ## Contracts
