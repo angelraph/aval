@@ -6,6 +6,12 @@ oracle, or a bridge operator in the loop.
 
 Built for BUIDL CTC 2026 Fall (Creditcoin x Credit Labs), RWA track.
 
+Live on testnet:
+
+- `AvalInstrument`: [`0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141`](https://creditcoin3-testnet.blockscout.com/address/0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141) on Creditcoin CC3 testnet
+- `AvalCollateralVault`: [`0xBf9A5Bc472c27475F5b5276780a8D74EEfAB235A`](https://creditcoin3-testnet.blockscout.com/address/0xBf9A5Bc472c27475F5b5276780a8D74EEfAB235A) on Creditcoin CC3 testnet
+- `AvalPresentment`: [`0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141`](https://sepolia.etherscan.io/address/0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141) on Sepolia (same address as AvalInstrument by coincidence, they're on different chains)
+
 ## The problem
 
 A documentary credit (a letter of credit, in older language) is how most of the world's trade
@@ -83,18 +89,31 @@ npm run deploy:sepolia       # deploys AvalPresentment
 npm run deploy:creditcoin    # deploys AvalInstrument and AvalCollateralVault
 npm run register:source      # tells AvalInstrument which source contract to trust
 
-npm run issue                # issues a demo instrument
-npm run fund <instrumentId>
-npm run present <instrumentId> "<document text>"
-npm run verify-proof <instrumentId> <sepoliaTxHash>   # the Attestcoin step
-npm run status <instrumentId>
+npm run issue -- <drawee> <beneficiary> <amountEth> "<document text>" <expiryBlocksFromNow>
+npm run fund -- <instrumentId>
+npm run present -- <instrumentId> "<document text>"
+npm run verify-proof -- <instrumentId> <sepoliaTxHash>   # the Attestcoin step
+npm run status -- <instrumentId>
 ```
+
+To run it as two separate wallets instead of one (so it isn't just talking to itself), set
+`COUNTERPARTY_PRIVATE_KEY` in `.env`, issue with the counterparty's address as drawee and
+beneficiary, then add `--as counterparty` to `fund` and `present`:
+
+```bash
+npm run fund -- <instrumentId> --as counterparty
+npm run present -- <instrumentId> "<document text>" --as counterparty
+```
+
+`verify-proof` stays as the first wallet: `execute()` is permissionless, so it's just paying the
+Creditcoin gas to relay a proof, not acting as a party to the trade.
 
 ## Status
 
-Day 1 (2026-09-10): contracts written and tested (23 tests passing), deployment scripts ready.
-Deploying to testnet next, once the deployer wallet is funded. Frontend has not started yet. See
-`PROGRESS.md` for the day-by-day log.
+Live on testnet, both sides of the flow tested end to end with two separate wallets: an
+instrument issued, funded, presented on Sepolia, proven by Attestcoin, and honored on Creditcoin
+automatically. The frontend (Desk, Issue, instrument detail with fund/present/verify, and the
+lending pool) is up and wired to the live contracts. See `PROGRESS.md` for the day-by-day log.
 
 ## License
 

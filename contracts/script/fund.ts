@@ -1,18 +1,21 @@
 import { ethers } from 'ethers';
-import { loadEnv, requireEnv } from './lib/env';
+import { loadEnv, requireEnv, pickSigningKey, stripRoleFlag } from './lib/env';
 import { loadArtifact } from './lib/artifacts';
 
 loadEnv();
 
-/** Funds an instrument. Usage: tsx script/fund.ts <instrumentId> */
+/**
+ * Funds an instrument. Usage: tsx script/fund.ts <instrumentId> [--as counterparty]
+ * Add "--as counterparty" to sign with COUNTERPARTY_PRIVATE_KEY instead of the default wallet.
+ */
 async function main() {
   const rpcUrl = requireEnv('CREDITCOIN_RPC_URL');
-  const privateKey = requireEnv('CREDITCOIN_WALLET_PRIVATE_KEY');
+  const privateKey = pickSigningKey(process.argv);
   const instrumentAddress = requireEnv('AVAL_INSTRUMENT_ADDRESS');
 
-  const id = process.argv[2];
+  const [id] = stripRoleFlag(process.argv.slice(2));
   if (!id) {
-    throw new Error('Usage: tsx script/fund.ts <instrumentId>');
+    throw new Error('Usage: tsx script/fund.ts <instrumentId> [--as counterparty]');
   }
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
