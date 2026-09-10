@@ -8,6 +8,10 @@ export const AVAL_INSTRUMENT_ADDRESS = process.env.NEXT_PUBLIC_AVAL_INSTRUMENT_A
 export const AVAL_PRESENTMENT_ADDRESS = process.env.NEXT_PUBLIC_AVAL_PRESENTMENT_ADDRESS ?? '';
 export const AVAL_COLLATERAL_VAULT_ADDRESS = process.env.NEXT_PUBLIC_AVAL_COLLATERAL_VAULT_ADDRESS ?? '';
 
+// The block AvalInstrument was deployed at, so event log scans don't have to search from
+// genesis (the public RPC rejects overly wide eth_getLogs ranges in one call).
+export const AVAL_INSTRUMENT_DEPLOY_BLOCK = Number(process.env.NEXT_PUBLIC_AVAL_INSTRUMENT_DEPLOY_BLOCK ?? '0');
+
 export const CREDITCOIN_TESTNET = {
   chainIdHex: '0x18e8f', // 102543
   chainName: 'Creditcoin CC3 Testnet',

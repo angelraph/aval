@@ -41,3 +41,48 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+@layer components {
+  .input {
+    width: 100%;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    padding: 0.6rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--ink);
+    outline: none;
+  }
+  .input:focus {
+    border-color: var(--accent);
+  }
+  .btn-primary {
+    border-radius: 0.5rem;
+    background: var(--accent);
+    color: var(--accent-foreground);
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .btn-primary:hover {
+    opacity: 0.9;
+  }
+  .btn-primary:disabled {
+    opacity: 0.6;
+  }
+  .btn-secondary {
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--ink);
+    padding: 0.55rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+  .btn-secondary:hover {
+    border-color: var(--accent);
+  }
+  .btn-secondary:disabled {
+    opacity: 0.6;
+  }
+}
