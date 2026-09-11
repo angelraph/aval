@@ -7,6 +7,7 @@ oracle, or a bridge operator in the loop.
 Built for BUIDL CTC 2026 Fall (Creditcoin x Credit Labs), RWA track.
 
 Live app: **https://aval-three-phi.vercel.app**
+Pitch deck: [`docs/aval-pitch-deck.pdf`](docs/aval-pitch-deck.pdf)
 
 Live on testnet:
 
@@ -148,7 +149,7 @@ decide what counts as a valid inclusion proof. That part stays exactly as audite
 ```
 contracts/   Solidity contracts, Foundry tests, and the TypeScript deployment/demo scripts
 web/         Frontend
-docs/        Technical write-up, pitch deck outline, demo video script, testing guide
+docs/        Technical write-up, pitch deck (outline and PDF), testing guide
 ```
 
 ## Contracts
