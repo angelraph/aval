@@ -37,6 +37,16 @@
 
 ### Next up
 
-- Polish the presentment/verify flow UX (it currently makes the beneficiary sit through a several-minute wait for attestation, worth a better loading state).
 - Record the actual demo video.
 - Fill in the DoraHacks submission form.
+
+## 2026-09-11 (Day 2)
+
+- Registered on DoraHacks as a hacker for BUIDL CTC 2026 Fall (name, bio, role, citizenship, no teammates needed).
+- User testing turned up real bugs. Traced them all down to two root causes rather than patching symptoms:
+  1. The `@gluwa/usc-sdk`'s `ProofBuilder.waitUntilHeightAttested` has no retry around its own HTTP polling (a hardcoded 10s axios timeout, one slow response from the prover kills the whole multi-minute wait). This is exactly the `Failed to fetch attested height: AxiosError: timeout of 10000ms exceeded` error from testing. Fixed by waiting on the RPC-backed `chainInfo.PrecompileChainInfoProvider.waitUntilHeightAttested` instead (same SDK, has its own exponential-backoff retry, reads the same precompile the contract itself trusts), and only touching the prover's HTTP API once, with our own retry, to fetch the proof bytes.
+  2. The proof relay was a background job kept in server memory, which doesn't reliably survive across separate serverless invocations on Vercel. That's why progress sometimes looked like it vanished, or "Show details" came up empty. Rewrote the whole relay (`web/lib/proofRelay.ts`, the API route) to be fully stateless: every call does one small bounded step and hands back everything needed to resume, the browser holds the state (and now persists it to localStorage per instrument, so a reload doesn't lose progress either). Verified each phase against real on-chain data, including the "already honored" path (checks on-chain status before submitting, instead of trying to pattern-match a revert string).
+- Added a proper disconnect button (dropdown: copy address, disconnect), with a "don't auto-reconnect" flag so it actually stays disconnected across reloads.
+- Clarified the borrow section: explains why it's hidden for ERC20-settled instruments instead of just not showing anything.
+- Added a warning on the Issue form when the chosen expiry is shorter than attestation realistically takes, so an instrument doesn't silently get issued in a state where it can never be honored in time.
+- Everything above went through targeted real-chain testing (mining check, attestation check, proof fetch, and the already-honored short-circuit) against live contracts before shipping, not just a build check.

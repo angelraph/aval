@@ -1,85 +1,157 @@
 import { ethers } from "ethers";
 import { proofProvider, chainInfo } from "@gluwa/usc-sdk";
 import AvalInstrumentAbi from "./abi/AvalInstrument.json";
+import { queryFilterChunked } from "./queryLogs";
+import { AVAL_INSTRUMENT_DEPLOY_BLOCK } from "./contracts";
 
-export interface RelayJob {
-  status: "waiting-for-mining" | "waiting-for-attestation" | "generating-proof" | "submitting" | "done" | "error";
+export type RelayPhase =
+  | "waiting-for-mining"
+  | "waiting-for-attestation"
+  | "generating-proof"
+  | "submitting"
+  | "done"
+  | "error";
+
+/**
+ * Everything needed to resume the relay from where the last step left off. Passed back and
+ * forth between the client and the API route as plain JSON, nothing is kept in server memory
+ * between calls. That matters on Vercel: a serverless function does not reliably survive, or
+ * share memory, across separate invocations, and this flow can take many minutes end to end,
+ * far longer than any single invocation should run for.
+ */
+export interface RelayState {
+  phase: RelayPhase;
+  blockNumber?: number;
+  proof?: unknown;
+  txHash?: string;
+  error?: string;
+}
+
+export interface RelayStepResult {
+  state: RelayState;
   log: string[];
-  txHash: string | null;
-  error: string | null;
-}
-
-const jobs = new Map<string, RelayJob>();
-
-function appendLog(job: RelayJob, line: string) {
-  job.log.push(line);
-  // eslint-disable-next-line no-console
-  console.log(`[relay ${job.status}] ${line}`);
-}
-
-export function getJob(jobId: string): RelayJob | undefined {
-  return jobs.get(jobId);
 }
 
 /**
- * Runs the same flow as contracts/script/verify-proof.ts: waits for the presentment tx to be
- * mined, waits for its block to be attested on Creditcoin, fetches the inclusion proof, and
- * submits it to AvalInstrument.execute(). Runs in the background; poll getJob(jobId) for status.
+ * Runs exactly one small, bounded unit of work toward getting an instrument honored, then
+ * returns immediately. Never blocks waiting on external services beyond a single request. The
+ * caller (the API route, driven by the browser) is expected to call this again a few seconds
+ * later with the returned state until phase is "done" or "error".
  */
-export function startVerifyProofJob(jobId: string, instrumentId: string, sourceTxHash: string): RelayJob {
-  const job: RelayJob = { status: "waiting-for-mining", log: [], txHash: null, error: null };
-  jobs.set(jobId, job);
+export async function runRelayStep(
+  instrumentId: string,
+  sourceTxHash: string,
+  state: RelayState
+): Promise<RelayStepResult> {
+  const log: string[] = [];
 
-  runJob(job, instrumentId, sourceTxHash).catch((err) => {
-    job.status = "error";
-    job.error = err.shortMessage ?? err.message ?? String(err);
-    appendLog(job, `Failed: ${job.error}`);
-  });
-
-  return job;
+  try {
+    switch (state.phase) {
+      case "waiting-for-mining":
+        return await stepWaitForMining(sourceTxHash, log);
+      case "waiting-for-attestation":
+        return await stepWaitForAttestation(state, log);
+      case "generating-proof":
+        return await stepGenerateProof(sourceTxHash, state, log);
+      case "submitting":
+        return await stepSubmit(instrumentId, state, log);
+      default:
+        return { state, log };
+    }
+  } catch (err: any) {
+    const message = err.shortMessage ?? err.message ?? String(err);
+    log.push(`Error: ${message}`);
+    return { state: { ...state, phase: "error", error: message }, log };
+  }
 }
 
-async function runJob(job: RelayJob, instrumentId: string, sourceTxHash: string) {
-  const sourceChainRpcUrl = process.env.SOURCE_CHAIN_RPC_URL!;
-  const creditcoinRpcUrl = process.env.CREDITCOIN_RPC_URL!;
-  const privateKey = process.env.CREDITCOIN_RELAYER_PRIVATE_KEY!;
-  const proofBuilderUrl = process.env.PROOF_BUILDER_URL!;
-  const instrumentAddress = process.env.NEXT_PUBLIC_AVAL_INSTRUMENT_ADDRESS!;
-  const chainKey = Number(process.env.SOURCE_CHAIN_KEY!);
+async function stepWaitForMining(sourceTxHash: string, log: string[]): Promise<RelayStepResult> {
+  const provider = new ethers.JsonRpcProvider(process.env.SOURCE_CHAIN_RPC_URL!);
+  const receipt = await provider.getTransactionReceipt(sourceTxHash);
 
-  const sourceProvider = new ethers.JsonRpcProvider(sourceChainRpcUrl);
-  const creditcoinProvider = new ethers.JsonRpcProvider(creditcoinRpcUrl);
-  const wallet = new ethers.Wallet(privateKey, creditcoinProvider);
-
-  appendLog(job, `Waiting for ${sourceTxHash} to be mined on the source chain...`);
-  const txReceipt = await sourceProvider.waitForTransaction(sourceTxHash, 1, 120_000);
-  if (!txReceipt || txReceipt.blockNumber == null) {
-    throw new Error("Transaction is not mined on the source chain yet.");
+  if (!receipt || receipt.blockNumber == null) {
+    log.push("Waiting for the presentment to be mined on Sepolia...");
+    return { state: { phase: "waiting-for-mining" }, log };
   }
-  const blockNumber = txReceipt.blockNumber;
-  appendLog(job, `Found in block ${blockNumber}.`);
 
-  job.status = "waiting-for-attestation";
-  const proofBuilder = new proofProvider.service.ProofBuilder(chainKey, proofBuilderUrl);
+  log.push(`Mined in Sepolia block ${receipt.blockNumber}.`);
+  return { state: { phase: "waiting-for-attestation", blockNumber: receipt.blockNumber }, log };
+}
+
+async function stepWaitForAttestation(state: RelayState, log: string[]): Promise<RelayStepResult> {
+  const chainKey = Number(process.env.SOURCE_CHAIN_KEY!);
+  const creditcoinProvider = new ethers.JsonRpcProvider(process.env.CREDITCOIN_RPC_URL!);
   const info = new chainInfo.PrecompileChainInfoProvider(creditcoinProvider);
 
-  const latestAttested = await info.getLatestAttestedHeightAndHash(chainKey);
-  appendLog(job, `Latest attested height for chain key ${chainKey}: ${latestAttested.height}`);
-  appendLog(job, `Waiting for block ${blockNumber} to be attested on Creditcoin. This is usually a few minutes.`);
+  // RPC-backed, reads the same precompile AvalInstrument itself trusts, and has its own
+  // exponential-backoff retry inside the SDK. This is what actually decides whether we can
+  // move on, the proof builder's own cache (checked next) can lag a little behind it.
+  const attested = await info.getLatestAttestedHeightAndHash(chainKey);
 
-  await proofBuilder.waitUntilHeightAttested(chainKey, blockNumber, 15_000, 1_200_000);
-  appendLog(job, "Block attested.");
-
-  job.status = "generating-proof";
-  const proofResult = await proofBuilder.getProof(sourceTxHash);
-  if (!proofResult.success || !proofResult.data) {
-    throw new Error(`Proof generation failed: ${proofResult.error}`);
+  if (!attested.exists || attested.height < state.blockNumber!) {
+    log.push(
+      `Not attested yet (latest attested height: ${attested.exists ? attested.height : "none"}, need ${state.blockNumber}).`
+    );
+    return { state, log };
   }
-  appendLog(job, "Proof generated.");
 
-  job.status = "submitting";
+  log.push(`Block ${state.blockNumber} is attested on Creditcoin.`);
+  return { state: { phase: "generating-proof", blockNumber: state.blockNumber }, log };
+}
+
+async function stepGenerateProof(
+  sourceTxHash: string,
+  state: RelayState,
+  log: string[]
+): Promise<RelayStepResult> {
+  const chainKey = Number(process.env.SOURCE_CHAIN_KEY!);
+  const proofBuilder = new proofProvider.service.ProofBuilder(chainKey, process.env.PROOF_BUILDER_URL!, 30_000);
+
+  const result = await proofBuilder.getProof(sourceTxHash);
+
+  if (!result.success || !result.data) {
+    // The block can be attested on-chain slightly before the proof builder's own cache has
+    // indexed it, and its API can be slow or briefly unreachable under load. Either way this
+    // isn't fatal, the next call from the client just tries again.
+    log.push(`Proof not ready yet (${result.error ?? "not cached"}). Will retry.`);
+    return { state, log };
+  }
+
+  log.push("Proof generated.");
+  return { state: { phase: "submitting", blockNumber: state.blockNumber, proof: result.data }, log };
+}
+
+async function stepSubmit(instrumentId: string, state: RelayState, log: string[]): Promise<RelayStepResult> {
+  const instrumentAddress = process.env.NEXT_PUBLIC_AVAL_INSTRUMENT_ADDRESS!;
+  const creditcoinProvider = new ethers.JsonRpcProvider(process.env.CREDITCOIN_RPC_URL!);
+  const wallet = new ethers.Wallet(process.env.CREDITCOIN_RELAYER_PRIVATE_KEY!, creditcoinProvider);
   const instrument = new ethers.Contract(instrumentAddress, AvalInstrumentAbi, wallet);
-  const proofData = proofResult.data;
+
+  // Check on-chain state before attempting anything. This proof may already have been
+  // submitted, by us on a previous call that succeeded but whose response got lost, or by
+  // anyone else, execute() is permissionless. Checking status directly is far more reliable
+  // than trying to pattern-match a revert reason string, which varies by RPC node and doesn't
+  // always come through cleanly.
+  const current = await instrument.getInstrument(instrumentId);
+  const STATUS_HONORED = 2;
+  const STATUS_EXPIRED = 3;
+  if (Number(current.status) === STATUS_HONORED) {
+    log.push("Already honored (this instrument was already paid out). Treating as done.");
+    const txHash = await readHonoredTxHash(instrumentAddress, instrumentId, creditcoinProvider);
+    return { state: { phase: "done", txHash: txHash ?? undefined }, log };
+  }
+  if (Number(current.status) === STATUS_EXPIRED) {
+    throw new Error("This instrument expired before the proof could be submitted.");
+  }
+
+  const proofData = state.proof as {
+    chainKey: number;
+    headerNumber: number;
+    txBytes: string;
+    merkleProof: { root: string; siblings: unknown[] };
+    continuityProof: { lowerEndpointDigest: string; roots: string[] };
+  };
+
   const params = [
     0, // AvalAction.Presented
     proofData.chainKey,
@@ -101,11 +173,43 @@ async function runJob(job: RelayJob, instrumentId: string, sourceTxHash: string)
     gasLimit = 21000n + continuityBlocks * 5000n + 600000n;
   }
 
-  appendLog(job, "Submitting proof to AvalInstrument.execute()...");
-  const tx = await (instrument as any).execute(...params, { gasLimit });
-  const receipt = await tx.wait();
+  try {
+    log.push("Submitting the proof to AvalInstrument.execute()...");
+    const tx = await (instrument as any).execute(...params, { gasLimit });
+    const receipt = await tx.wait();
+    log.push(`Done. Tx hash: ${receipt.hash}`);
+    return { state: { phase: "done", txHash: receipt.hash }, log };
+  } catch (err: any) {
+    // Someone else could have submitted the same valid proof in the moment between our status
+    // check above and this call, execute() is permissionless. Re-check rather than trust the
+    // revert reason string, RPC nodes don't all surface it the same way.
+    const after = await instrument.getInstrument(instrumentId).catch(() => null);
+    if (after && Number(after.status) === 2 /* Honored */) {
+      log.push("Already honored (someone else's submission landed first). Treating as done.");
+      const txHash = await readHonoredTxHash(instrumentAddress, instrumentId, creditcoinProvider);
+      return { state: { phase: "done", txHash: txHash ?? undefined }, log };
+    }
+    throw err;
+  }
+}
 
-  job.status = "done";
-  job.txHash = receipt.hash;
-  appendLog(job, `Done. Tx hash: ${receipt.hash}`);
+async function readHonoredTxHash(
+  instrumentAddress: string,
+  instrumentId: string,
+  provider: ethers.JsonRpcProvider
+): Promise<string | null> {
+  try {
+    const instrument = new ethers.Contract(instrumentAddress, AvalInstrumentAbi, provider);
+    const latest = await provider.getBlockNumber();
+    const logs = await queryFilterChunked(
+      instrument,
+      instrument.filters.InstrumentHonored(instrumentId),
+      AVAL_INSTRUMENT_DEPLOY_BLOCK || 0,
+      latest
+    );
+    const last = logs[logs.length - 1];
+    return last?.transactionHash ?? null;
+  } catch {
+    return null;
+  }
 }

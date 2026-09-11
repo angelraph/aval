@@ -30,6 +30,13 @@ export default function IssuePage() {
 
   const documentHash = documentText ? keccak256(toUtf8Bytes(documentText)) : null;
 
+  // Attesting a presentment realistically takes several minutes on testnet. An expiry shorter
+  // than that isn't wrong, exactly, it's just guaranteed to lapse before the proof can land,
+  // which is worth flagging rather than silently letting someone issue an instrument that
+  // can never be honored.
+  const SAFE_MIN_EXPIRY_BLOCKS = 2000;
+  const expiryTooShort = Number(expiryBlocks) > 0 && Number(expiryBlocks) < SAFE_MIN_EXPIRY_BLOCKS;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -179,6 +186,13 @@ export default function IssuePage() {
             min="1"
             className="input"
           />
+          {expiryTooShort && (
+            <p className="mt-1.5 text-xs text-amber-600">
+              Presenting and proving a document usually takes several minutes on testnet. An
+              expiry this short will likely lapse before that finishes, use it only if you mean to
+              test expiry itself.
+            </p>
+          )}
         </Field>
 
         {error && <p className="text-sm text-red-500">{error}</p>}

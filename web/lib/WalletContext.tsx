@@ -7,6 +7,7 @@ import { subscribeToWallets, EIP6963ProviderDetail } from "./eip6963";
 import { CREDITCOIN_TESTNET, SEPOLIA } from "./contracts";
 
 const LAST_WALLET_KEY = "aval:lastWalletRdns";
+const DISCONNECTED_KEY = "aval:userDisconnected";
 
 type NetworkConfig = typeof CREDITCOIN_TESTNET | typeof SEPOLIA;
 
@@ -17,6 +18,7 @@ interface WalletState {
   wallets: EIP6963ProviderDetail[];
   activeWalletName: string | null;
   connect: (wallet?: EIP6963ProviderDetail) => Promise<void>;
+  disconnect: () => void;
   getSigner: () => Promise<JsonRpcSigner>;
   switchNetwork: (network: NetworkConfig) => Promise<void>;
 }
@@ -54,6 +56,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       if (wallet) {
         localStorage.setItem(LAST_WALLET_KEY, wallet.info.rdns);
       }
+      localStorage.removeItem(DISCONNECTED_KEY);
 
       const provider = getBrowserProvider(raw);
       const network = await provider.getNetwork();
@@ -61,6 +64,24 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     } finally {
       setConnecting(false);
     }
+  }, []);
+
+  const disconnect = useCallback(() => {
+    // There's no universal "disconnect" RPC call every wallet honors, so this forgets the
+    // connection on Aval's side (the standard dApp convention). The wallet extension itself
+    // stays connected until the user revokes it there, if they want to.
+    const raw = activeProvider.current;
+    if (raw?.request) {
+      raw
+        .request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] })
+        .catch(() => {});
+    }
+    activeProvider.current = null;
+    setAddress(null);
+    setActiveWalletName(null);
+    setChainId(null);
+    localStorage.removeItem(LAST_WALLET_KEY);
+    localStorage.setItem(DISCONNECTED_KEY, "true");
   }, []);
 
   const getSigner = useCallback(async () => {
@@ -78,6 +99,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
   // Try to silently pick back up a previously connected wallet on reload, without prompting.
   useEffect(() => {
     if (wallets.length === 0) return;
+    if (localStorage.getItem(DISCONNECTED_KEY) === "true") return;
 
     (async () => {
       const lastRdns = localStorage.getItem(LAST_WALLET_KEY);
@@ -123,7 +145,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   return (
     <WalletContext.Provider
-      value={{ address, chainId, connecting, wallets, activeWalletName, connect, getSigner, switchNetwork }}
+      value={{
+        address,
+        chainId,
+        connecting,
+        wallets,
+        activeWalletName,
+        connect,
+        disconnect,
+        getSigner,
+        switchNetwork,
+      }}
     >
       {children}
     </WalletContext.Provider>

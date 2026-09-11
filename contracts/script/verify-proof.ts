@@ -38,19 +38,31 @@ async function main() {
   const blockNumber = txReceipt.blockNumber;
   console.log(`Found in block ${blockNumber}.`);
 
-  const proofBuilder = new proofProvider.service.ProofBuilder(chainKey, proofBuilderUrl);
+  // Note: we deliberately don't use ProofBuilder.waitUntilHeightAttested here. It polls the
+  // prover's HTTP API directly with no retry around the request itself (a default 10s axios
+  // timeout), so a single slow response kills the whole multi-minute wait. The chain-info
+  // precompile check below reads the same attestation directly over RPC and has its own
+  // exponential-backoff retry built in, so we use that to decide when to move on, and only hit
+  // the prover's HTTP API afterwards, with our own retry, to fetch the actual proof bytes.
+  const proofBuilder = new proofProvider.service.ProofBuilder(chainKey, proofBuilderUrl, 30_000);
   const info = new chainInfo.PrecompileChainInfoProvider(creditcoinProvider);
 
   const latestAttested = await info.getLatestAttestedHeightAndHash(chainKey);
-  console.log(`Latest attested height for chain key ${chainKey}: ${latestAttested.height}`);
+  console.log(`Latest attested height for chain key ${chainKey}: ${latestAttested.exists ? latestAttested.height : 'none'}`);
 
   console.log(`Waiting for block ${blockNumber} to be attested on Creditcoin (this can take several minutes)...`);
-  await proofBuilder.waitUntilHeightAttested(chainKey, blockNumber, 15_000, 1_200_000);
+  await info.waitUntilHeightAttested(chainKey, blockNumber, 15_000, 1_200_000, 5_000);
   console.log('Block attested. Generating proof...');
 
-  const proofResult = await proofBuilder.getProof(txHash);
-  if (!proofResult.success || !proofResult.data) {
-    throw new Error(`Proof generation failed: ${proofResult.error}`);
+  const proofDeadline = Date.now() + 5 * 60_000;
+  let proofResult = await proofBuilder.getProof(txHash);
+  while (!proofResult.success || !proofResult.data) {
+    if (Date.now() > proofDeadline) {
+      throw new Error(`Proof generation failed after retrying: ${proofResult.error}`);
+    }
+    console.log(`Proof not ready yet (${proofResult.error ?? 'not cached'}), retrying in 10s...`);
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
+    proofResult = await proofBuilder.getProof(txHash);
   }
   console.log('Proof generated.');
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import { Contract, formatEther, keccak256, toUtf8Bytes, ZeroAddress } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
 import { CREDITCOIN_TESTNET, SEPOLIA, shortenAddress } from "@/lib/wallet";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
 import { queryFilterChunked } from "@/lib/queryLogs";
+import type { RelayState } from "@/lib/proofRelay";
 import { formatInstrumentAmount, isNativeToken } from "@/lib/tokenFormat";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ConnectButton } from "@/components/ConnectButton";
@@ -51,8 +52,39 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
 
   const [documentText, setDocumentText] = useState("");
   const [presentedTxHash, setPresentedTxHash] = useState<string | null>(null);
-  const [relayJobId, setRelayJobId] = useState<string | null>(null);
-  const [relayJob, setRelayJob] = useState<any>(null);
+  const [relayState, setRelayState] = useState<RelayState | null>(null);
+  const [relayLog, setRelayLog] = useState<string[]>([]);
+  const relayInFlight = useRef(false);
+  const persistKey = `aval:relay:${id}`;
+
+  // Everything about the verify step lives in the browser, not on the server, so a reload or a
+  // closed tab shouldn't throw away several minutes of progress. Restore it once on mount.
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(persistKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setPresentedTxHash(parsed.presentedTxHash ?? null);
+        setRelayState(parsed.relayState ?? null);
+        setRelayLog(parsed.relayLog ?? []);
+      }
+    } catch {
+      // Ignore a corrupt or inaccessible localStorage entry, just start fresh.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (presentedTxHash) {
+        localStorage.setItem(persistKey, JSON.stringify({ presentedTxHash, relayState, relayLog }));
+      } else {
+        localStorage.removeItem(persistKey);
+      }
+    } catch {
+      // Not essential, worst case a reload just loses the in-progress state.
+    }
+  }, [persistKey, presentedTxHash, relayState, relayLog]);
 
   const refresh = useCallback(async () => {
     if (!AVAL_INSTRUMENT_ADDRESS) return;
@@ -104,18 +136,36 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
   }, [refresh]);
 
   useEffect(() => {
-    if (!relayJobId) return;
+    if (!relayState || relayState.phase === "done" || relayState.phase === "error") return;
+
     const interval = setInterval(async () => {
-      const res = await fetch(`/api/verify-proof/${relayJobId}`);
-      const data = await res.json();
-      setRelayJob(data);
-      if (data.status === "done" || data.status === "error") {
-        clearInterval(interval);
-        refresh().catch(() => {});
+      if (relayInFlight.current) return; // never overlap two steps
+      relayInFlight.current = true;
+      try {
+        const res = await fetch("/api/verify-proof", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instrumentId: id, sourceTxHash: presentedTxHash, state: relayState }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setRelayState({ phase: "error", error: data.error ?? "Request failed" });
+          return;
+        }
+        setRelayLog((prev) => [...prev, ...data.log]);
+        setRelayState(data.state);
+        if (data.state.phase === "done") refresh().catch(() => {});
+      } catch (err: any) {
+        // A single failed request (network blip, cold start) isn't fatal, the interval just
+        // tries again with the same state on the next tick.
+        setRelayLog((prev) => [...prev, `Request failed, retrying: ${err.message ?? err}`]);
+      } finally {
+        relayInFlight.current = false;
       }
     }, 4000);
+
     return () => clearInterval(interval);
-  }, [relayJobId, refresh]);
+  }, [relayState, presentedTxHash, id, refresh]);
 
   async function handleFund() {
     if (!inst) return;
@@ -188,16 +238,18 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
     if (!presentedTxHash) return;
     setError(null);
     setBusy("verify");
+    setRelayLog([]);
     try {
+      const initialState: RelayState = { phase: "waiting-for-mining" };
       const res = await fetch("/api/verify-proof", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instrumentId: id, sourceTxHash: presentedTxHash }),
+        body: JSON.stringify({ instrumentId: id, sourceTxHash: presentedTxHash, state: initialState }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to start verification");
-      setRelayJobId(data.jobId);
-      setRelayJob({ status: "waiting-for-mining", log: [] });
+      setRelayLog(data.log ?? []);
+      setRelayState(data.state);
     } catch (err: any) {
       setError(err.message ?? String(err));
     } finally {
@@ -301,7 +353,7 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
         </Action>
       )}
 
-      {presentedTxHash && !relayJob && (
+      {presentedTxHash && !relayState && (
         <Action title="Prove it on Creditcoin">
           <p className="text-sm text-muted">
             Presented on Sepolia:{" "}
@@ -314,24 +366,31 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
         </Action>
       )}
 
-      {relayJob && (
+      {relayState && (
         <Action title="Attestcoin proof status">
-          <RelaySteps status={relayJob.status} />
-          {relayJob.status === "error" && (
-            <p className="mt-3 text-sm text-red-500">{relayJob.error ?? "Something went wrong."}</p>
+          <RelaySteps status={relayState.phase} />
+          {relayState.phase === "error" && (
+            <>
+              <p className="mt-3 text-sm text-red-500">{relayState.error ?? "Something went wrong."}</p>
+              <button onClick={handleVerify} disabled={busy === "verify"} className="btn-secondary mt-3">
+                {busy === "verify" ? "Retrying..." : "Try again"}
+              </button>
+            </>
           )}
           <details className="mt-3">
             <summary className="cursor-pointer text-xs text-muted">Show details</summary>
             <div className="mt-2 max-h-48 overflow-y-auto rounded-md bg-background p-3 font-mono text-xs text-muted">
-              {relayJob.log?.map((line: string, i: number) => <div key={i}>{line}</div>)}
-              {relayJob.log?.length === 0 && <div>Starting...</div>}
+              {relayLog.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+              {relayLog.length === 0 && <div>Starting...</div>}
             </div>
           </details>
-          {relayJob.status === "waiting-for-attestation" && (
+          {relayState.phase === "waiting-for-attestation" && (
             <p className="mt-3 text-xs text-muted">
               Attestcoin has to see this transaction&apos;s block and prove it on Creditcoin. That
-              takes several minutes on testnet. This keeps polling on its own, the page is safe to
-              leave open or come back to later.
+              takes several minutes on testnet. This keeps polling on its own, and it's safe to
+              close the tab and come back, it'll pick back up from here.
             </p>
           )}
         </Action>
@@ -346,6 +405,16 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
           <button onClick={handlePledgeAndBorrow} disabled={busy === "borrow"} className="btn-secondary mt-3">
             {busy === "borrow" ? "Borrowing..." : `Borrow ${formatEther((inst.amount * 80n) / 100n)} CTC`}
           </button>
+        </Action>
+      )}
+
+      {isBeneficiary && status === "Funded" && !isExpired && !isNativeToken(inst.token) && (
+        <Action title="Borrow against this instrument">
+          <p className="text-sm text-muted">
+            Not available for this instrument. AvalCollateralVault only lends against native CTC
+            instruments right now, this one is settled in an ERC20, so there&apos;s no borrow
+            option here.
+          </p>
         </Action>
       )}
 
