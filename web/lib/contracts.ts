@@ -21,7 +21,7 @@ export const CREDITCOIN_TESTNET = {
   chainName: 'Creditcoin CC3 Testnet',
   rpcUrl: 'https://rpc.cc3-testnet.creditcoin.network',
   nativeCurrency: { name: 'Testnet CTC', symbol: 'tCTC', decimals: 18 },
-  blockExplorerUrl: 'https://creditcoin3-testnet.blockscout.com',
+  blockExplorerUrl: 'https://creditcoin-testnet.blockscout.com',
 };
 
 export const SEPOLIA = {

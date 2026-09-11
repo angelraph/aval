@@ -11,10 +11,15 @@ Pitch deck: [`docs/aval-pitch-deck.pdf`](docs/aval-pitch-deck.pdf)
 
 Live on testnet:
 
-- `AvalInstrument`: [`0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE`](https://creditcoin3-testnet.blockscout.com/address/0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE) on Creditcoin CC3 testnet
-- `AvalCollateralVault`: [`0x1584A2252694E957e8B569d6F55A1C856aEa4a94`](https://creditcoin3-testnet.blockscout.com/address/0x1584A2252694E957e8B569d6F55A1C856aEa4a94) on Creditcoin CC3 testnet
+- `AvalInstrument`: [`0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE`](https://creditcoin-testnet.blockscout.com/address/0xFbe8A52580E0155dB0154eaeFc6D66c91565F5DE) on Creditcoin CC3 testnet
+- `AvalCollateralVault`: [`0x1584A2252694E957e8B569d6F55A1C856aEa4a94`](https://creditcoin-testnet.blockscout.com/address/0x1584A2252694E957e8B569d6F55A1C856aEa4a94) on Creditcoin CC3 testnet
 - `AvalPresentment`: [`0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141`](https://sepolia.etherscan.io/address/0x2017c0D852b949a5835D99f86CDb6FA9c0eCf141) on Sepolia
-- `AvalTestToken` (aTUSD, a mock stablecoin for demoing ERC20 settlement): [`0xff726e92187002ef2615b80FbE67c79b9DF6a2ec`](https://creditcoin3-testnet.blockscout.com/address/0xff726e92187002ef2615b80FbE67c79b9DF6a2ec) on Creditcoin CC3 testnet
+- `AvalTestToken` (aTUSD, a mock stablecoin for demoing ERC20 settlement): [`0xff726e92187002ef2615b80FbE67c79b9DF6a2ec`](https://creditcoin-testnet.blockscout.com/address/0xff726e92187002ef2615b80FbE67c79b9DF6a2ec) on Creditcoin CC3 testnet
+
+All three Creditcoin contracts are verified on the explorer, source, ABI, and a Read/Write tab
+included, anyone can inspect them or call them directly, no need to trust the frontend. aTUSD
+mints freely (`mint(address,uint256)`, no restriction), so testing the ERC20 path doesn't need
+anything from us: mint yourself some from the app itself, or straight from the explorer.
 
 ## The problem
 

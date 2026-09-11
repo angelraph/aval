@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Contract, ZeroAddress, keccak256, parseEther, parseUnits, toUtf8Bytes } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
@@ -11,6 +11,7 @@ import {
   AVAL_TEST_TOKEN_SYMBOL,
   AVAL_TEST_TOKEN_DECIMALS,
   AvalInstrumentABI,
+  AvalTestTokenABI,
 } from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
 import { ConnectButton } from "@/components/ConnectButton";
@@ -27,6 +28,34 @@ export default function IssuePage() {
   const [expiryBlocks, setExpiryBlocks] = useState("50000");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [mintTo, setMintTo] = useState("");
+  const [minting, setMinting] = useState(false);
+  const [mintError, setMintError] = useState<string | null>(null);
+  const [mintDone, setMintDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (address && !mintTo) setMintTo(address);
+  }, [address, mintTo]);
+
+  async function handleMint() {
+    setMintError(null);
+    setMintDone(null);
+    setMinting(true);
+    try {
+      if (!address) await connect();
+      await switchNetwork(CREDITCOIN_TESTNET);
+      const signer = await getSigner();
+      const token = new Contract(AVAL_TEST_TOKEN_ADDRESS, AvalTestTokenABI, signer);
+      const tx = await token.mint(mintTo, parseUnits("1000", AVAL_TEST_TOKEN_DECIMALS));
+      await tx.wait();
+      setMintDone(`Minted 1,000 ${AVAL_TEST_TOKEN_SYMBOL} to that address.`);
+    } catch (err: any) {
+      setMintError(err.shortMessage ?? err.message ?? String(err));
+    } finally {
+      setMinting(false);
+    }
+  }
 
   const documentHash = documentText ? keccak256(toUtf8Bytes(documentText)) : null;
 
@@ -150,6 +179,34 @@ export default function IssuePage() {
             </button>
           </div>
         </Field>
+
+        {settleInToken && AVAL_TEST_TOKEN_ADDRESS && (
+          <div className="rounded-lg border border-border bg-panel p-4">
+            <p className="text-sm font-medium text-ink">Need test {AVAL_TEST_TOKEN_SYMBOL}?</p>
+            <p className="mt-1 text-xs text-muted">
+              Mint some for free, to any address. Whoever funds this instrument (the drawee) needs
+              enough {AVAL_TEST_TOKEN_SYMBOL} in their wallet to fund it.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                value={mintTo}
+                onChange={(e) => setMintTo(e.target.value)}
+                placeholder="0x... (defaults to your connected wallet)"
+                className="input"
+              />
+              <button
+                type="button"
+                onClick={handleMint}
+                disabled={minting || !mintTo}
+                className="btn-secondary shrink-0"
+              >
+                {minting ? "Minting..." : `Mint 1,000 ${AVAL_TEST_TOKEN_SYMBOL}`}
+              </button>
+            </div>
+            {mintDone && <p className="mt-2 text-xs text-emerald-600">{mintDone}</p>}
+            {mintError && <p className="mt-2 text-xs text-red-500">{mintError}</p>}
+          </div>
+        )}
 
         <Field label={`Amount (${settleInToken ? AVAL_TEST_TOKEN_SYMBOL : "CTC"})`}>
           <input

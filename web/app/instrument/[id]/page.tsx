@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useRef, useState } from "react";
-import { Contract, formatEther, keccak256, toUtf8Bytes, ZeroAddress } from "ethers";
+import { Contract, formatEther, keccak256, parseUnits, toUtf8Bytes, ZeroAddress } from "ethers";
 import { useWallet } from "@/lib/WalletContext";
 import { CREDITCOIN_TESTNET, SEPOLIA, shortenAddress } from "@/lib/wallet";
 import {
@@ -13,6 +13,8 @@ import {
   AvalPresentmentABI,
   AvalCollateralVaultABI,
   AvalTestTokenABI,
+  AVAL_TEST_TOKEN_SYMBOL,
+  AVAL_TEST_TOKEN_DECIMALS,
   InstrumentStatus,
 } from "@/lib/contracts";
 import { getCreditcoinReadProvider } from "@/lib/readProvider";
@@ -166,6 +168,23 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
 
     return () => clearInterval(interval);
   }, [relayState, presentedTxHash, id, refresh]);
+
+  async function handleMintTestToken() {
+    if (!inst || isNativeToken(inst.token) || !address) return;
+    setError(null);
+    setBusy("mint");
+    try {
+      await switchNetwork(CREDITCOIN_TESTNET);
+      const signer = await getSigner();
+      const token = new Contract(inst.token, AvalTestTokenABI, signer);
+      const tx = await token.mint(address, parseUnits("1000", AVAL_TEST_TOKEN_DECIMALS));
+      await tx.wait();
+    } catch (err: any) {
+      setError(err.shortMessage ?? err.message ?? String(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function handleFund() {
     if (!inst) return;
@@ -334,6 +353,19 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
 
       {isDrawee && status === "Issued" && !isExpired && (
         <Action title="Fund this instrument">
+          {!isNativeToken(inst.token) && (
+            <p className="mb-3 text-xs text-muted">
+              Need {AVAL_TEST_TOKEN_SYMBOL} to fund this?{" "}
+              <button
+                type="button"
+                onClick={handleMintTestToken}
+                disabled={busy === "mint"}
+                className="text-accent underline underline-offset-2"
+              >
+                {busy === "mint" ? "Minting..." : `Mint 1,000 ${AVAL_TEST_TOKEN_SYMBOL} to my wallet`}
+              </button>
+            </p>
+          )}
           <button onClick={handleFund} disabled={busy === "fund"} className="btn-primary">
             {busy === "fund" ? "Funding..." : `Fund ${formatInstrumentAmount(inst.amount, inst.token)}`}
           </button>
