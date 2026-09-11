@@ -1,43 +1,134 @@
-# Demo video script
+# Demo video script (read-aloud version)
 
-Target length: 2 to 3 minutes. Screen recording, live testnet, not slides.
+This is written so you can read it straight into the microphone while you click through the
+app. Every **SAY** block is exactly what to say out loud, word for word if you want. Everything
+in brackets is a stage direction, not something you say.
 
-**0:00 to 0:20, cold open**
-Show the homepage. Say it straight: "This is Aval. It's a documentary credit, the thing that
-moves most of world trade, rebuilt so a bank doesn't have to manually check paperwork. Payment
-sits in escrow, and it releases itself the moment proof of shipment shows up on another chain."
+Total reading time: about 2 minutes. The video will run a bit longer because of the wait in
+Scene 6, more on that below.
 
-**0:20 to 0:45, issue and fund**
-Switch to the desk, show it's empty or has a prior instrument. Go to Issue, fill it in on camera:
-a drawee address, a beneficiary address, an amount, a document description ("18t coffee, Mombasa
-to Hamburg"). Submit it, real wallet popup, real transaction. Cut to the drawee wallet funding it.
-Say what just happened: real money, locked in a contract on Creditcoin, not held by anyone.
+## Before you hit record
 
-**0:45 to 1:15, present**
-Switch wallets to the beneficiary. Type the same document text. Present it, on Sepolia, live.
-Point at the resulting Sepolia transaction hash. Say: "That's it, that's the proof of shipment.
-It's a public transaction on another chain. Nothing about Aval controls it."
+- Have two MetaMask accounts ready (Wallet A and Wallet B), both already imported.
+- Have the app open at https://aval-three-phi.vercel.app on the Home page.
+- Decide now: are you going to sit through the real multi-minute wait in Scene 6, or record it
+  separately and edit it in later, sped up? Either is fine. Details are in Scene 6 below.
 
-**1:15 to 2:00, the Attestcoin step**
-Click "Verify & release." Show the status panel: waiting for mining, waiting for attestation.
-Say what's happening while it runs, in plain terms: "Attestcoin has to see this transaction land
-in a block, and then prove that block on Creditcoin. That normally takes a few minutes, so I'll
-speed this part up." Cut/fast-forward to it finishing. Show the status flip to Honored, and the
-beneficiary's balance change. Show the transaction hash of the actual `execute()` call, the one
-that verified the proof against the real block prover precompile.
+---
 
-**2:00 to 2:30, the financing angle**
-Quick cut to a second, already-funded instrument. Show "Borrow against this instrument." Borrow
-it. Point out: "This loan repays itself, straight out of the payout, the moment the instrument is
-honored. There's no separate repayment step, because the money never touches the borrower's hands
-until the loan already settled."
+## Scene 1: Home page
 
-**2:30 to end, close**
-Back to the desk, showing multiple real instruments in different states. "Everything here is
-live, on Creditcoin CC3 testnet and Sepolia. Not a demo network, not mocked data." End on the
-GitHub URL and the repo's README.
+[You're on the home page. Don't click anything yet.]
 
-Notes for recording: use two real browser wallet profiles (or two windows) so the drawer/drawee/
-beneficiary switch is visible and honest, not narrated over one wallet. Keep the attestation wait
-either genuinely sped up in editing (label it as such) or cut to a second take recorded after it
-finished, don't fake the wait.
+**SAY:**
+> "Hi, this is Aval, built on Creditcoin.
+>
+> For a hundred years, banks have handled trade payments by hand. A buyer's bank promises to
+> pay a seller once someone manually checks a paper document.
+>
+> Aval does that with code instead. The money sits locked in a smart contract, and it releases
+> itself the moment real proof shows up that the goods actually shipped. No bank. No manual
+> check."
+
+## Scene 2: The Desk
+
+[Click "Desk" in the top menu.]
+
+**SAY:**
+> "This is the Desk. Every deal here is called an instrument. You can see its amount, and
+> whether it's still waiting, funded, or already paid out."
+
+## Scene 3: Issue an instrument
+
+[Connect Wallet A. Click "Issue" in the top menu.]
+
+**SAY:**
+> "Let's create one. I'm the seller here. I'll say who owes me the money, how much, and what
+> document has to show up before I get paid."
+
+[Fill in the form:
+- Drawee: paste Wallet B's address
+- Beneficiary: paste Wallet B's address
+- Amount: 0.01
+- Document: type something simple, like "18 tons of coffee, Mombasa to Hamburg"
+Click "Issue instrument" and confirm in MetaMask.]
+
+**SAY:**
+> "I'll issue it now."
+
+[Wait for the page to land on the new instrument.]
+
+## Scene 4: Fund it
+
+[Switch MetaMask to Wallet B. Refresh the page.]
+
+**SAY:**
+> "Now I'm the buyer. I switch to my other wallet, and I see a Fund button."
+
+[Click "Fund", confirm in MetaMask.]
+
+**SAY:**
+> "I click it, and my money goes straight into the contract. Nobody is holding it. Not Aval, not
+> a bank. Just code."
+
+## Scene 5: Present the document
+
+[Still as Wallet B. Type the exact same document text from Scene 3 into the box.]
+
+**SAY:**
+> "Now let's say the coffee actually shipped. As the buyer, I present proof of that, I type the
+> same words again, and send it. This happens on a different blockchain, called Sepolia, just to
+> prove something real happened somewhere else."
+
+[Click "Present on Sepolia", confirm in MetaMask.]
+
+## Scene 6: Verify and get paid
+
+[Click "Verify & release".]
+
+**SAY:**
+> "Now the important part. I click Verify and release. This asks Creditcoin's Attestcoin
+> Protocol to check that what just happened on Sepolia is real. It usually takes several minutes,
+> so I'm going to speed this bit up."
+
+**[Here's the actual choice for this scene:]**
+- **Option A (simplest):** Stop recording. Come back in 5 to 10 minutes once the status says
+  "Honored." Start recording again and say the line below. Cut the two clips together later, or
+  just upload them as one video with a jump cut, that's completely normal for a demo video.
+- **Option B:** Keep recording the whole wait, then speed up that section 8x to 10x in your
+  video editor afterward so it only takes a few seconds to watch.
+
+[Once the status shows "Honored":]
+
+**SAY:**
+> "And there it is. Proven, and paid, automatically. I didn't click anything else after Verify.
+> The contract did the rest by itself the second it had proof."
+
+## Scene 7: Instrument financing (optional, only if time allows)
+
+[On a different, already-funded instrument, as the beneficiary, click "Borrow".]
+
+**SAY:**
+> "One more thing. If I don't want to wait at all, I can borrow eighty percent of the money right
+> now from Aval's own lending pool. That loan pays itself back automatically the second the real
+> payment lands, out of the payout itself."
+
+## Scene 8: Closing
+
+[Back on the Desk page, showing a few instruments.]
+
+**SAY:**
+> "Everything you just watched is real. Real testnet transactions, on Creditcoin and on Sepolia,
+> not a mockup. Thanks for watching. This is Aval."
+
+---
+
+## A few tips for reading it well
+
+- Read each SAY block once through silently first, then record it. Don't worry about matching
+  it word for word, saying it in your own natural voice is better than sounding stiff.
+- Pause for a breath between scenes. Little gaps are easy to trim out later.
+- If you mess up a line, just stop, take a breath, and say it again. Keep the good take, cut the
+  rest.
+- It's fine to record scenes in more than one take and stitch them together. Nobody expects one
+  perfect unbroken recording.
