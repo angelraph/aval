@@ -59,7 +59,7 @@ flowchart LR
 
     subgraph Frontend["Frontend (Next.js)"]
         UI["Desk / Issue / Instrument / Lend"]
-        Relay["Proof relay (background job)"]
+        Relay["Proof relay (stateless, one small step per call)"]
     end
 
     subgraph Sepolia["Sepolia (source chain)"]
@@ -99,6 +99,12 @@ flowchart LR
 which is part of Creditcoin itself. Everything upstream of that (the proof builder, the relay) is
 just plumbing to get a proof in front of the contract; none of it can make the contract accept a
 proof that isn't real.
+
+The relay itself deliberately holds no state on the server between calls. Each call does one
+small, bounded check (is it mined yet, is it attested yet, is the proof cached yet) and hands
+back exactly what's needed to resume. The browser drives the polling and keeps the running log,
+so a page reload mid-wait doesn't lose progress, and no single request has to survive the several
+minutes the full wait can take, which matters on serverless hosting.
 
 The proof lifecycle, in order:
 
@@ -221,10 +227,17 @@ npm run issue -- <drawee> <beneficiary> <amount> "<document text>" <expiryBlocks
 ## Status
 
 Live on testnet and deployed at https://aval-three-phi.vercel.app. The full flow has been run end
-to end three times for real: once single-wallet, once as two separate wallets settling in native
-CTC, and once as two separate wallets settling in the ERC20 test stablecoin. All three honored
-correctly. The frontend (Desk, Issue, instrument detail with fund/present/verify, and the lending
-pool) is live and wired to the deployed contracts. See `PROGRESS.md` for the day-by-day log.
+to end for real, more than once: single-wallet, two separate wallets settling in native CTC, and
+two separate wallets settling in the ERC20 test stablecoin. All honored correctly. The frontend
+(Desk, Issue, instrument detail with fund/present/verify, and the lending pool) is live and wired
+to the deployed contracts, all three Creditcoin contracts are verified on the block explorer.
+
+A round of real user testing on the live deployment also turned up two genuine reliability bugs,
+both fixed and re-verified against production, not just locally: the proof relay used to lose
+track of progress across serverless invocations (fixed by making it fully stateless), and an
+instrument could fail with a bare revert if attestation crossed its expiry window mid-wait (fixed
+by checking the real block number before every step, with a clear reason instead of a raw
+revert). See `PROGRESS.md` for the day-by-day log.
 
 ## License
 
