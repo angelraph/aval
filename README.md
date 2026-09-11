@@ -239,6 +239,9 @@ instrument could fail with a bare revert if attestation crossed its expiry windo
 by checking the real block number before every step, with a clear reason instead of a raw
 revert). See `PROGRESS.md` for the day-by-day log.
 
+Submitted to BUIDL CTC 2026 Fall on DoraHacks under the RWA track, and currently under review
+ahead of the 2026-09-14 04:59 UTC deadline.
+
 ## License
 
 MIT
