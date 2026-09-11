@@ -46,6 +46,18 @@ export async function runRelayStep(
   const log: string[] = [];
 
   try {
+    // Checked before every single step, not just the final one. Attestation realistically takes
+    // several minutes, long enough for an instrument to cross its own expiry block while we're
+    // still waiting, even though its on-chain status field stays "Funded" until someone actually
+    // calls markExpired(). Catching that here, against the real block number, means a doomed
+    // instrument fails fast with a clear reason instead of grinding through several more minutes
+    // of polling only to hit a bare "transaction execution reverted" at the very end.
+    const shortCircuit = await checkInstrumentStillActionable(instrumentId);
+    if (shortCircuit) {
+      log.push(shortCircuit.log);
+      return { state: shortCircuit.state, log };
+    }
+
     switch (state.phase) {
       case "waiting-for-mining":
         return await stepWaitForMining(sourceTxHash, log);
@@ -63,6 +75,50 @@ export async function runRelayStep(
     log.push(`Error: ${message}`);
     return { state: { ...state, phase: "error", error: message }, log };
   }
+}
+
+const STATUS_FUNDED = 1;
+const STATUS_HONORED = 2;
+const STATUS_EXPIRED = 3;
+
+/**
+ * Reads the instrument's real state directly, rather than trusting whatever phase we think
+ * we're in. Returns a result to short-circuit to (already honored, or expired) if the flow
+ * shouldn't continue, or null if it's fine to proceed with the current step.
+ */
+async function checkInstrumentStillActionable(
+  instrumentId: string
+): Promise<{ state: RelayState; log: string } | null> {
+  const instrumentAddress = process.env.NEXT_PUBLIC_AVAL_INSTRUMENT_ADDRESS!;
+  const creditcoinProvider = new ethers.JsonRpcProvider(process.env.CREDITCOIN_RPC_URL!);
+  const instrument = new ethers.Contract(instrumentAddress, AvalInstrumentAbi, creditcoinProvider);
+
+  const [current, currentBlock] = await Promise.all([
+    instrument.getInstrument(instrumentId),
+    creditcoinProvider.getBlockNumber(),
+  ]);
+
+  if (Number(current.status) === STATUS_HONORED) {
+    const txHash = await readHonoredTxHash(instrumentAddress, instrumentId, creditcoinProvider);
+    return {
+      state: { phase: "done", txHash: txHash ?? undefined },
+      log: "Already honored. Treating as done.",
+    };
+  }
+
+  const expiryBlock = Number(current.expiryBlock);
+  const isExpiredByBlock = currentBlock > expiryBlock;
+  if (Number(current.status) === STATUS_EXPIRED || (Number(current.status) === STATUS_FUNDED && isExpiredByBlock)) {
+    return {
+      state: {
+        phase: "error",
+        error: `This instrument's presentment window expired before the proof could be submitted (expired at Creditcoin block ${expiryBlock}, now at block ${currentBlock}). The escrow can be reclaimed with "Mark expired and refund"; a new instrument with more time will need to be issued to try again.`,
+      },
+      log: `Expired at block ${expiryBlock}, current block is ${currentBlock}.`,
+    };
+  }
+
+  return null;
 }
 
 async function stepWaitForMining(sourceTxHash: string, log: string[]): Promise<RelayStepResult> {
@@ -127,23 +183,6 @@ async function stepSubmit(instrumentId: string, state: RelayState, log: string[]
   const wallet = new ethers.Wallet(process.env.CREDITCOIN_RELAYER_PRIVATE_KEY!, creditcoinProvider);
   const instrument = new ethers.Contract(instrumentAddress, AvalInstrumentAbi, wallet);
 
-  // Check on-chain state before attempting anything. This proof may already have been
-  // submitted, by us on a previous call that succeeded but whose response got lost, or by
-  // anyone else, execute() is permissionless. Checking status directly is far more reliable
-  // than trying to pattern-match a revert reason string, which varies by RPC node and doesn't
-  // always come through cleanly.
-  const current = await instrument.getInstrument(instrumentId);
-  const STATUS_HONORED = 2;
-  const STATUS_EXPIRED = 3;
-  if (Number(current.status) === STATUS_HONORED) {
-    log.push("Already honored (this instrument was already paid out). Treating as done.");
-    const txHash = await readHonoredTxHash(instrumentAddress, instrumentId, creditcoinProvider);
-    return { state: { phase: "done", txHash: txHash ?? undefined }, log };
-  }
-  if (Number(current.status) === STATUS_EXPIRED) {
-    throw new Error("This instrument expired before the proof could be submitted.");
-  }
-
   const proofData = state.proof as {
     chainKey: number;
     headerNumber: number;
@@ -184,7 +223,7 @@ async function stepSubmit(instrumentId: string, state: RelayState, log: string[]
     // check above and this call, execute() is permissionless. Re-check rather than trust the
     // revert reason string, RPC nodes don't all surface it the same way.
     const after = await instrument.getInstrument(instrumentId).catch(() => null);
-    if (after && Number(after.status) === 2 /* Honored */) {
+    if (after && Number(after.status) === STATUS_HONORED) {
       log.push("Already honored (someone else's submission landed first). Treating as done.");
       const txHash = await readHonoredTxHash(instrumentAddress, instrumentId, creditcoinProvider);
       return { state: { phase: "done", txHash: txHash ?? undefined }, log };

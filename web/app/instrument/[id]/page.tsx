@@ -217,13 +217,22 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
 
   async function handlePresent() {
     setError(null);
+
+    const hash = keccak256(toUtf8Bytes(documentText));
+    if (inst && hash !== inst.requiredDocumentHash) {
+      setError(
+        "That doesn't match the document this instrument was issued with. Check for typos, even a " +
+          "single character off gives a different hash and this will fail after the wait, not before it."
+      );
+      return;
+    }
+
     setBusy("present");
     try {
       if (!address) await connect();
       await switchNetwork(SEPOLIA);
       const signer = await getSigner();
       const contract = new Contract(AVAL_PRESENTMENT_ADDRESS, AvalPresentmentABI, signer);
-      const hash = keccak256(toUtf8Bytes(documentText));
       const tx = await contract.presentDocument(id, hash);
       const receipt = await tx.wait();
       setPresentedTxHash(receipt.hash);
@@ -343,6 +352,11 @@ export default function InstrumentPage({ params }: { params: Promise<{ id: strin
             className="input mt-3"
             placeholder="shipment-42: 25t cocoa, Lagos to Rotterdam, vessel MV Aurora"
           />
+          {documentText && keccak256(toUtf8Bytes(documentText)) !== inst.requiredDocumentHash && (
+            <p className="mt-1.5 text-xs text-amber-600">
+              This doesn&apos;t match yet, check it against exactly what was typed at issuance.
+            </p>
+          )}
           <button
             onClick={handlePresent}
             disabled={busy === "present" || !documentText}
